@@ -401,6 +401,7 @@ function shareJob(id){
     <div class="grid2" style="margin-top:8px">
       <button class="btn ghost sm" id="bPhotos" style="width:100%">View meter photos</button>
       <button class="btn ghost sm" id="bPaid" style="width:100%">${j.paid?'Mark unpaid':'Mark received'}</button></div>
+    <button class="btn ghost sm" id="bEdit" style="width:100%;margin-top:8px">Correct this job</button>
     <button class="btn ghost" id="x" style="margin-top:10px">Close</button>`);
   document.getElementById('bWa').onclick=()=>waSend(document.getElementById('bTxt').value,p.phone);
   const u=document.getElementById('bUpi');if(u)u.onclick=()=>location.href=link;
@@ -417,7 +418,69 @@ function shareJob(id){
       ${b?`<img src="${b}" style="width:100%;border-radius:4px">`:''}
       <button class="btn ghost" id="x2" style="margin-top:10px">Close</button>`);
     document.getElementById('x2').onclick=closeSheet};
+  document.getElementById('bEdit').onclick=()=>editJob(id);
   document.getElementById('x').onclick=closeSheet;
+}
+
+/* Owner-side correction. Readings and money are evidence, so every change is
+   logged on the job and pushed to the sheet rather than silently overwritten. */
+function editJob(id){
+  const j=S.jobs.find(x=>x.id===id);if(!j)return;
+  openSheet(`<h2 class="disp">Correct job</h2>
+    <p class="muted">${fmtD(j.date)} · originally ${j.start.toFixed(1)} → ${j.end.toFixed(1)}. The meter photos stay untouched as proof.</p>
+    <label>Party</label><select id="eP">${S.parties.map(p=>`<option value="${p.id}" ${p.id===j.partyId?'selected':''}>${esc(p.name)}</option>`).join('')}</select>
+    <label>Site / detail</label><input id="eS" value="${esc(j.site||'')}">
+    <div class="grid2"><div><label>Start reading</label><input id="eA" type="number" step="0.1" value="${j.start}"></div>
+      <div><label>End reading</label><input id="eB" type="number" step="0.1" value="${j.end}"></div></div>
+    <div class="grid2"><div><label>Billed hours</label><input id="eH" type="number" step="0.1" value="${j.billHours}"></div>
+      <div><label>Rate / hour</label><input id="eR" type="number" value="${j.rate}"></div></div>
+    <div class="grid2"><div><label>Transport</label><input id="eT" type="number" value="${j.transport||0}"></div>
+      <div><label>Date</label><input id="eD" type="date" value="${j.date}"></div></div>
+    <div class="meter" style="margin:12px 0"><div class="lbl">Amount</div><div class="val num" id="eAmt">—</div>
+      <div class="lbl" id="eDelta" style="margin-top:4px">&nbsp;</div></div>
+    <div class="grid2"><button class="btn ghost" id="x">Cancel</button><button class="btn" id="go">Save correction</button></div>
+    <button class="btn danger" id="del" style="width:100%;margin-top:14px">Delete this job</button>`);
+  const calc=()=>{
+    const v=Math.round((+document.getElementById('eH').value||0)*(+document.getElementById('eR').value||0)+(+document.getElementById('eT').value||0));
+    document.getElementById('eAmt').textContent=money(v);
+    const d=v-j.amount,el=document.getElementById('eDelta');
+    el.innerHTML=d?`was ${money(j.amount)} — ${d>0?'up':'down'} ${money(Math.abs(d))}`:'&nbsp;';
+    return v};
+  ['eH','eR','eT'].forEach(i=>document.getElementById(i).oninput=calc);
+  document.getElementById('eA').oninput=document.getElementById('eB').oninput=()=>{
+    const a=+document.getElementById('eA').value,b=+document.getElementById('eB').value;
+    if(b>a){document.getElementById('eH').value=(b-a).toFixed(1);calc()}};
+  calc();
+  document.getElementById('x').onclick=()=>shareJob(id);
+  document.getElementById('del').onclick=()=>{
+    if(!confirm('Delete this job permanently? The party balance will change by '+money(j.amount)+'.'))return;
+    dropPaymentFor(j.id);
+    queue('job',{...j,party:party(j.partyId).name,deleted:true});
+    S.jobs.splice(S.jobs.indexOf(j),1);save();closeSheet();render();toast('Job deleted')};
+  document.getElementById('go').onclick=()=>{
+    const a=+document.getElementById('eA').value,b=+document.getElementById('eB').value;
+    if(!(b>a))return toast('End reading must be above start');
+    const before={start:j.start,end:j.end,hours:j.hours,rate:j.rate,amount:j.amount,party:party(j.partyId).name};
+    const amt=calc();
+    j.partyId=document.getElementById('eP').value;
+    j.site=document.getElementById('eS').value;
+    j.date=document.getElementById('eD').value;
+    j.start=a;j.end=b;j.hours=+(b-a).toFixed(1);
+    j.billHours=+document.getElementById('eH').value;
+    j.rate=+document.getElementById('eR').value;
+    j.transport=+document.getElementById('eT').value||0;
+    j.amount=amt;
+    const ch=[];
+    if(before.start!==a||before.end!==b)ch.push(`meter ${before.start}→${before.end} became ${a}→${b}`);
+    if(before.rate!==j.rate)ch.push(`rate ${before.rate}→${j.rate}`);
+    if(before.amount!==amt)ch.push(`amount ${before.amount}→${amt}`);
+    if(before.party!==party(j.partyId).name)ch.push(`party ${before.party}→${party(j.partyId).name}`);
+    j.editedAt=new Date().toISOString();
+    j.editNote=[j.editNote,ch.join('; ')].filter(Boolean).join(' | ').slice(-450);
+    /* a job paid at the site has its own payment row — keep it equal to the new amount */
+    const lp=S.payments.find(x=>x.jobId===j.id);
+    if(lp&&lp.amount!==amt){lp.amount=amt;lp.partyId=j.partyId;lp.party=party(j.partyId).name;queue('payment',lp)}
+    save();queue('job',{...j,party:party(j.partyId).name});closeSheet();render();toast('Corrected')};
 }
 
 /* --- LEDGER --- */
@@ -435,17 +498,47 @@ function vLedger(){
   document.getElementById('addP').onclick=()=>editParty();
   document.querySelectorAll('.pOpen').forEach(b=>b.onclick=()=>openParty(b.dataset.id));
 }
+/* Indian numbers arrive from the phonebook as +91 98765 43210, 098765 43210,
+   or with dashes. Store the bare 10 digits so WhatsApp links always work. */
+function tidyPhone(t){
+  let d=String(t||'').replace(/\D/g,'');
+  if(d.length>10)d=d.slice(-10);
+  return d;
+}
+const canPickContact=()=>'contacts' in navigator&&'ContactsManager' in window;
+async function pickContact(){
+  try{
+    const list=await navigator.contacts.select(['name','tel'],{multiple:false});
+    if(!list||!list.length)return null;
+    const c=list[0];
+    return {name:(c.name&&c.name[0])||'',phone:tidyPhone(c.tel&&c.tel[0])};
+  }catch(e){return null}
+}
 function editParty(id){
   const p=id?party(id):{name:'',phone:'',rate:S.settings.rate};
   openSheet(`<h2 class="disp">${id?'Edit':'New'} party</h2>
+    ${canPickContact()?`<button class="btn dark" id="pPick" style="margin-bottom:4px">Choose from contacts</button>`:''}
     <label>Name</label><input id="pN" value="${esc(p.name)}">
     <label>WhatsApp number</label><input id="pP" type="tel" inputmode="numeric" value="${esc(p.phone||'')}" placeholder="10 digits">
     <label>Rate per hour</label><input id="pR" type="number" value="${p.rate||S.settings.rate}">
     <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="x">Cancel</button><button class="btn" id="go">Save</button></div>`);
+  const pk=document.getElementById('pPick');
+  if(pk)pk.onclick=async()=>{
+    const c=await pickContact();
+    if(!c)return toast('No contact chosen');
+    /* never wipe something already typed with a blank field from the phonebook */
+    if(c.name)document.getElementById('pN').value=c.name;
+    if(c.phone)document.getElementById('pP').value=c.phone;
+    if(!c.phone)toast('That contact has no number saved');
+  };
   document.getElementById('x').onclick=closeSheet;
   document.getElementById('go').onclick=()=>{
     const n=document.getElementById('pN').value.trim();if(!n)return toast('Name required');
-    const row={id:id||uid(),name:n,phone:document.getElementById('pP').value.trim(),rate:+document.getElementById('pR').value};
+    const ph=tidyPhone(document.getElementById('pP').value);
+    if(ph&&ph.length!==10)return toast('Number should be 10 digits');
+    const dup=S.parties.find(x=>x.id!==id&&ph&&tidyPhone(x.phone)===ph);
+    if(dup)return toast('That number is already saved as '+dup.name);
+    const row={id:id||uid(),name:n,phone:ph,rate:+document.getElementById('pR').value};
     if(id)Object.assign(party(id),row);else S.parties.push(row);
     save();queue('party',row);closeSheet();render()};
 }

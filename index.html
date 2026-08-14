@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14181c">
+<title>Machine Log</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --steel:#14181c; --graphite:#2a3138; --concrete:#e9ecef; --paper:#f7f8f9;
+  --yellow:#ffc400; --yellow-d:#e0a800; --ink:#14181c; --muted:#5d6873;
+  --line:#c9d0d6; --ok:#0a7d4b; --due:#b3261e; --blue:#1a5fb4;
+  --r:4px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--concrete); color:var(--ink);
+  font:400 16px/1.45 Barlow,system-ui,sans-serif;
+  padding-bottom:86px; overscroll-behavior-y:contain;
+}
+h1,h2,h3,.disp{font-family:'Barlow Condensed',Barlow,sans-serif;letter-spacing:.01em;margin:0}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+/* hazard rule = the machine vernacular, used only as section divider */
+.hazard{height:6px;background:repeating-linear-gradient(135deg,var(--yellow) 0 10px,var(--steel) 10px 20px)}
+header{background:var(--steel);color:#fff;padding:14px 16px 12px;position:sticky;top:0;z-index:40}
+header .row{display:flex;align-items:baseline;justify-content:space-between}
+header h1{font-size:24px;font-weight:700;text-transform:uppercase}
+header small{color:#9aa5ae;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+main{padding:14px 12px 8px;max-width:620px;margin:0 auto}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.card h2{font-size:19px;text-transform:uppercase;font-weight:700;margin-bottom:8px}
+label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px;font-weight:600}
+input,select,textarea,button{font-family:inherit;font-size:16px}
+input,select,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:var(--r);background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:3px solid var(--yellow);outline-offset:0;border-color:var(--steel)}
+button{border:0;border-radius:var(--r);padding:15px 16px;font-weight:700;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:18px;text-transform:uppercase;letter-spacing:.03em}
+.btn{background:var(--yellow);color:var(--steel);width:100%;min-height:54px}
+.btn:active{background:var(--yellow-d)}
+.btn.dark{background:var(--steel);color:#fff}
+.btn.ghost{background:transparent;color:var(--steel);border:2px solid var(--steel)}
+.btn.danger{background:var(--due);color:#fff}
+.btn.sm{padding:9px 12px;min-height:0;font-size:15px;width:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+/* SIGNATURE: hour-meter drum readout */
+.meter{background:var(--steel);border-radius:var(--r);padding:12px 10px;text-align:center;border:2px solid #000}
+.meter .lbl{color:#8f9aa4;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.meter .val{font-family:'Barlow Condensed';font-weight:700;font-size:34px;color:var(--yellow);line-height:1.05;
+  text-shadow:0 0 12px rgba(255,196,0,.25)}
+.meter .val.small{font-size:26px}
+.meter.plain .val{color:#fff}
+.stat{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:10px}
+.stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.stat .v{font-family:'Barlow Condensed';font-size:26px;font-weight:700;line-height:1.1}
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--steel);display:grid;grid-template-columns:repeat(5,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}
+nav button{background:none;color:#8f9aa4;padding:11px 2px 13px;font-size:12px;border-radius:0;letter-spacing:.04em}
+nav button .ic{display:block;font-size:19px;line-height:1.2}
+nav button.on{color:var(--yellow);box-shadow:inset 0 3px 0 var(--yellow)}
+.row{display:flex;gap:10px;align-items:center}
+.between{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.pill{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:100px;white-space:nowrap}
+.pill.paid{background:#d7f0e3;color:var(--ok)} .pill.credit{background:#fadcda;color:var(--due)}
+.pill.warn{background:#fff3cd;color:#7a5a00}
+.item{border-top:1px solid var(--line);padding:11px 0}
+.item:first-of-type{border-top:0}
+.muted{color:var(--muted);font-size:13px}
+.hide{display:none!important}
+.sheet{position:fixed;inset:0;background:rgba(20,24,28,.72);z-index:100;display:flex;align-items:flex-end}
+.sheet>div{background:var(--paper);width:100%;max-height:94vh;overflow:auto;padding:16px;border-radius:12px 12px 0 0;max-width:620px;margin:0 auto}
+#cropWrap{position:relative;touch-action:none;background:#000;border-radius:var(--r);overflow:hidden}
+#cropImg{display:block;width:100%}
+#cropBox{position:absolute;border:2px solid var(--yellow);box-shadow:0 0 0 9999px rgba(0,0,0,.55);cursor:move}
+.handle{position:absolute;width:34px;height:34px;background:var(--yellow);border-radius:50%;right:-17px;bottom:-17px;border:2px solid #000}
+.alertbar{background:#fff3cd;border:1px solid #e0c26a;border-left:5px solid var(--yellow-d);padding:10px 12px;border-radius:var(--r);margin-bottom:10px;font-size:14px}
+.alertbar.bad{background:#fadcda;border-color:#e3a9a4;border-left-color:var(--due)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:100px;background:var(--steel);color:#fff;padding:12px 18px;border-radius:var(--r);z-index:200;font-weight:600;max-width:90%}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:left}
+th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05em}
+.dayb{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:var(--r);font-weight:700;background:#fff;font-size:14px}
+.dayb.P{background:#d7f0e3;border-color:#8ecfae} .dayb.A{background:#fadcda;border-color:#e3a9a4}
+.dayb.H{background:#fff3cd;border-color:#e0c26a} .dayb.off{opacity:.35}
+@media(prefers-reduced-motion:no-preference){.card{animation:up .18s ease-out}}
+@keyframes up{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="row"><h1 id="hTitle">Machine Log</h1><small id="hSync">offline</small></div>
+</header>
+<div class="hazard"></div>
+<main id="app"></main>
+
+<nav>
+  <button data-tab="work" class="on"><span class="ic">▶</span>Work</button>
+  <button data-tab="ledger"><span class="ic">₹</span>Parties</button>
+  <button data-tab="att"><span class="ic">▦</span>Duty</button>
+  <button data-tab="dash"><span class="ic">▲</span>Report</button>
+  <button data-tab="set"><span class="ic">⚙</span>Setup</button>
+</nav>
+
+<div class="sheet hide" id="sheet"><div id="sheetBody"></div></div>
+<input type="file" accept="image/*" capture="environment" id="cam" class="hide">
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
+<script>
+/* ---------------- state ---------------- */
+const K='jcb_v1';
+const DEF={
+  settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
+            opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
+            serviceEvery:250,lastService:0,script:''},
+  parties:[],jobs:[],payments:[],attendance:{},advances:[],diesel:[],active:null,queue:[]
+};
+let S=JSON.parse(localStorage.getItem(K)||'null')||structuredClone(DEF);
+S.settings={...DEF.settings,...S.settings};
+const save=()=>localStorage.setItem(K,JSON.stringify(S));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const money=n=>'₹'+(Math.round(n||0)).toLocaleString('en-IN');
+const today=()=>new Date().toISOString().slice(0,10);
+const fmtD=d=>{const x=new Date(d+'T00:00');return x.toLocaleDateString('en-IN',{day:'2-digit',month:'short'})};
+const esc=s=>String(s??'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
+
+/* photos in IndexedDB (kept out of localStorage so it never fills up) */
+let idb;
+const openDB=()=>new Promise(r=>{const q=indexedDB.open('jcbphotos',1);
+  q.onupgradeneeded=e=>e.target.result.createObjectStore('p');q.onsuccess=e=>{idb=e.target.result;r()}});
+const putPhoto=(id,d)=>new Promise(r=>{idb.transaction('p','readwrite').objectStore('p').put(d,id).onsuccess=r});
+const getPhoto=id=>new Promise(r=>{const q=idb.transaction('p').objectStore('p').get(id);q.onsuccess=()=>r(q.result)});
+
+/* ---------------- helpers ---------------- */
+const party=id=>S.parties.find(p=>p.id===id)||{name:'—',rate:S.settings.rate};
+/* Every rupee received — cash at site or a later UPI transfer — is a payment row.
+   Balance is simply everything billed minus everything received. */
+function partyDue(id){
+  const b=S.jobs.filter(j=>j.partyId===id).reduce((a,j)=>a+j.amount,0);
+  const p=S.payments.filter(x=>x.partyId===id).reduce((a,x)=>a+x.amount,0);
+  return b-p;
+}
+function addPayment(row){S.payments.push(row);queue('payment',row)}
+function dropPaymentFor(jobId){
+  const i=S.payments.findIndex(p=>p.jobId===jobId);
+  if(i>-1){queue('payment',{...S.payments[i],amount:0,mode:'reversed'});S.payments.splice(i,1)}
+}
+const lastReading=()=>{const j=S.jobs.filter(x=>x.end!=null).sort((a,b)=>b.ts-a.ts)[0];return j?j.end:null};
+function monthJobs(ym){return S.jobs.filter(j=>j.date.startsWith(ym))}
+function calcBill(hrs,rate,transport,minH){
+  const h=Math.max(hrs,minH||0);
+  return Math.round(h*rate+ (+transport||0));
+}
+async function geo(){return new Promise(r=>{if(!navigator.geolocation)return r(null);
+  navigator.geolocation.getCurrentPosition(p=>r({lat:+p.coords.latitude.toFixed(5),lng:+p.coords.longitude.toFixed(5)}),()=>r(null),{timeout:6000})})}
+
+/* ---------------- camera + crop + OCR ---------------- */
+const cam=document.getElementById('cam');
+function shoot(){return new Promise(res=>{cam.value='';cam.onchange=()=>{const f=cam.files[0];if(!f)return res(null);
+  const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(f)};cam.click()})}
+
+function shrink(dataUrl,max=1280,q=.72){return new Promise(r=>{const i=new Image();i.onload=()=>{
+  const s=Math.min(1,max/Math.max(i.width,i.height));const c=document.createElement('canvas');
+  c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);
+  r(c.toDataURL('image/jpeg',q))};i.src=dataUrl})}
+
+/* crop UI -> returns {full, cropCanvas} */
+function cropStep(dataUrl,title){
+  return new Promise(res=>{
+    openSheet(`<h2 class="disp">${title}</h2>
+      <p class="muted">Drag the yellow box over the hour-meter digits only. Tighter box = better reading.</p>
+      <div id="cropWrap"><img id="cropImg" src="${dataUrl}"><div id="cropBox"><div class="handle"></div></div></div>
+      <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="cRetake">Retake</button><button class="btn" id="cOk">Read digits</button></div>`);
+    const wrap=document.getElementById('cropWrap'),img=document.getElementById('cropImg'),box=document.getElementById('cropBox');
+    let b={x:.12,y:.40,w:.72,h:.20};
+    const draw=()=>{const W=wrap.clientWidth,H=wrap.clientHeight;
+      box.style.left=b.x*W+'px';box.style.top=b.y*H+'px';box.style.width=b.w*W+'px';box.style.height=b.h*H+'px'};
+    img.onload=draw;setTimeout(draw,60);window.addEventListener('resize',draw);
+    let mode=null,st=null;
+    const pt=e=>{const r=wrap.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)/r.width,y:(t.clientY-r.top)/r.height}};
+    box.addEventListener('pointerdown',e=>{e.preventDefault();mode=e.target.classList.contains('handle')?'rs':'mv';st={...pt(e),b:{...b}};box.setPointerCapture(e.pointerId)});
+    box.addEventListener('pointermove',e=>{if(!mode)return;e.preventDefault();const p=pt(e),dx=p.x-st.x,dy=p.y-st.y;
+      if(mode==='mv'){b.x=Math.min(Math.max(0,st.b.x+dx),1-b.w);b.y=Math.min(Math.max(0,st.b.y+dy),1-b.h)}
+      else{b.w=Math.min(Math.max(.12,st.b.w+dx),1-b.x);b.h=Math.min(Math.max(.06,st.b.h+dy),1-b.y)}draw()});
+    box.addEventListener('pointerup',()=>mode=null);
+    document.getElementById('cRetake').onclick=()=>{closeSheet();res(null)};
+    document.getElementById('cOk').onclick=()=>{
+      const i=new Image();i.onload=()=>{
+        const c=document.createElement('canvas');const sx=b.x*i.width,sy=b.y*i.height,sw=b.w*i.width,sh=b.h*i.height;
+        const sc=Math.max(1,Math.min(4,900/sw));c.width=sw*sc;c.height=sh*sc;
+        const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(i,sx,sy,sw,sh,0,0,c.width,c.height);
+        /* grayscale + contrast stretch helps LCD/analog meters a lot */
+        const d=x.getImageData(0,0,c.width,c.height),p=d.data;let mn=255,mx=0;
+        for(let k=0;k<p.length;k+=4){const g=(p[k]*.3+p[k+1]*.59+p[k+2]*.11)|0;p[k]=p[k+1]=p[k+2]=g;if(g<mn)mn=g;if(g>mx)mx=g}
+        const rg=Math.max(1,mx-mn);
+        for(let k=0;k<p.length;k+=4){let g=(p[k]-mn)*255/rg;g=g<95?0:g>150?255:g;p[k]=p[k+1]=p[k+2]=g}
+        x.putImageData(d,0,0);closeSheet();res(c)};
+      i.src=dataUrl}
+  })}
+
+let worker=null;
+async function ocrDigits(canvas){
+  try{
+    if(!worker){worker=await Tesseract.createWorker('eng');
+      await worker.setParameters({tessedit_char_whitelist:'0123456789.',tessedit_pageseg_mode:'7'})}
+    const {data}=await worker.recognize(canvas);
+    const raw=(data.text||'').replace(/[^0-9.]/g,'');
+    const m=raw.match(/\d{1,6}(\.\d)?/);
+    return m?m[0]:'';
+  }catch(e){return ''}
+}
+
+/* full capture flow -> {reading, photoId} */
+async function captureReading(label){
+  const shot=await shoot(); if(!shot)return null;
+  const small=await shrink(shot);
+  const c=await cropStep(small,label); if(!c)return captureReading(label);
+  openSheet(`<h2 class="disp">Reading the meter…</h2><p class="muted">First time takes ~15s to load the reader. You can type the number yourself if it misreads.</p>`);
+  const guess=await ocrDigits(c);
+  const pid='ph_'+uid(); await putPhoto(pid,small);
+  return new Promise(res=>{
+    openSheet(`<h2 class="disp">${label}</h2>
+      <div class="meter plain" style="margin:10px 0"><div class="lbl">Scanned</div><div class="val num">${guess||'– – – –'}</div></div>
+      <label>Hour meter reading — check against the photo and fix if wrong</label>
+      <input id="rdIn" type="number" step="0.1" inputmode="decimal" value="${guess}" style="font-size:28px;font-weight:700;text-align:center">
+      <img src="${small}" style="width:100%;margin-top:10px;border-radius:4px">
+      <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="rRetake">Retake photo</button><button class="btn" id="rOk">Confirm</button></div>`);
+    document.getElementById('rRetake').onclick=async()=>{closeSheet();res(await captureReading(label))};
+    document.getElementById('rOk').onclick=()=>{const v=parseFloat(document.getElementById('rdIn').value);
+      if(isNaN(v)){toast('Enter the reading');return}closeSheet();res({reading:v,photoId:pid})};
+  })}
+
+/* ---------------- sheet ---------------- */
+const sh=document.getElementById('sheet'),shB=document.getElementById('sheetBody');
+function openSheet(html){shB.innerHTML=html;sh.classList.remove('hide')}
+function closeSheet(){sh.classList.add('hide');shB.innerHTML=''}
+sh.onclick=e=>{if(e.target===sh)closeSheet()};
+
+/* ---------------- sync ---------------- */
+function queue(type,row){S.queue.push({type,row,at:Date.now()});save();sync()}
+let syncing=false;
+async function sync(){
+  const url=S.settings.script; const el=document.getElementById('hSync');
+  if(!url){el.textContent='local only';return}
+  if(syncing||!navigator.onLine||!S.queue.length){el.textContent=S.queue.length?S.queue.length+' to sync':'synced';return}
+  syncing=true;el.textContent='syncing…';
+  try{
+    const batch=S.queue.slice(0,20);
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:'sync',rows:batch})});
+    const j=await r.json();
+    if(j.ok){S.queue=S.queue.slice(batch.length);save();el.textContent=S.queue.length?S.queue.length+' to sync':'synced';
+      if(S.queue.length){syncing=false;return sync()}}
+    else el.textContent='sync error';
+  }catch(e){el.textContent=S.queue.length+' waiting'}
+  syncing=false;
+}
+window.addEventListener('online',sync);
+async function pushPhoto(pid,meta){
+  if(!S.settings.script)return;
+  const d=await getPhoto(pid); if(!d)return;
+  queue('photo',{id:pid,data:d,...meta});
+}
+
+/* ---------------- WhatsApp + UPI ---------------- */
+function upiLink(amt,note){
+  const s=S.settings;if(!s.upi)return '';
+  return `upi://pay?pa=${encodeURIComponent(s.upi)}&pn=${encodeURIComponent(s.upiName||s.owner||'Owner')}&am=${amt}&cu=INR&tn=${encodeURIComponent(note)}`;
+}
+function billText(j){
+  const p=party(j.partyId),s=S.settings;
+  const L=[`*${s.machine} — Work Bill*`,
+    `Date: ${fmtD(j.date)}`,
+    `Party: ${p.name}`,
+    j.site?`Site: ${j.site}`:'',
+    `Start meter: ${j.start}`,
+    `End meter: ${j.end}`,
+    `Hours worked: ${j.hours.toFixed(1)} hr${j.billHours!==j.hours?` (billed ${j.billHours.toFixed(1)} hr min)`:''}`,
+    `Rate: ${money(j.rate)}/hr`,
+    j.transport?`Transport: ${money(j.transport)}`:'',
+    `*Total: ${money(j.amount)}*`,
+    j.paid?`Status: PAID (${j.mode})`:`Status: PENDING`];
+  const due=partyDue(j.partyId);
+  if(!j.paid&&due>j.amount)L.push(`Total outstanding: ${money(due)}`);
+  if(!j.paid&&S.settings.upi)L.push('',`Pay by UPI: ${S.settings.upi}`);
+  return L.filter(Boolean).join('\n');
+}
+function waSend(text,phone){
+  const p=(phone||'').replace(/\D/g,'');
+  const n=p.length===10?'91'+p:p;
+  window.open(`https://wa.me/${n}?text=${encodeURIComponent(text)}`,'_blank');
+}
+
+/* ---------------- render ---------------- */
+let tab='work';
+const app=document.getElementById('app');
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  tab=b.dataset.tab;document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));render()});
+function render(){({work:vWork,ledger:vLedger,att:vAtt,dash:vDash,set:vSet}[tab])();sync()}
+
+/* --- WORK --- */
+function vWork(){
+  const s=S.settings,a=S.active,lr=lastReading();
+  const svcNext=s.lastService+ +s.serviceEvery, hrsToSvc=lr!=null?svcNext-lr:null;
+  let h='';
+  if(hrsToSvc!=null&&hrsToSvc<=20)h+=`<div class="alertbar ${hrsToSvc<=0?'bad':''}">Service ${hrsToSvc<=0?`overdue by ${Math.abs(hrsToSvc).toFixed(1)} hr`:`due in ${hrsToSvc.toFixed(1)} hr`} — next at ${svcNext.toFixed(1)} hr.</div>`;
+  const dueTot=S.parties.reduce((x,p)=>x+Math.max(0,partyDue(p.id)),0);
+  if(dueTot>0&&!a)h+=`<div class="alertbar">${money(dueTot)} pending collection from ${S.parties.filter(p=>partyDue(p.id)>0).length} party(s).</div>`;
+
+  if(a){
+    const p=party(a.partyId);
+    h+=`<div class="card"><div class="between"><h2>Job running</h2><span class="pill warn">Live</span></div>
+      <div class="muted">${esc(p.name)}${a.site?' · '+esc(a.site):''} · started ${new Date(a.startTs).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div>
+      <div class="meter" style="margin:12px 0"><div class="lbl">Start hour meter</div><div class="val num">${a.start.toFixed(1)}</div></div>
+      <button class="btn" id="endJob">Stop job &amp; take end photo</button>
+      <button class="btn ghost sm" id="cancelJob" style="width:100%;margin-top:8px">Cancel this job</button></div>`;
+  }else{
+    h+=`<div class="card"><h2>Start a job</h2>
+      <div class="meter plain" style="margin:8px 0"><div class="lbl">Last recorded meter</div><div class="val num small">${lr!=null?lr.toFixed(1):'no jobs yet'}</div></div>
+      <button class="btn" id="newJob">Take start photo</button></div>`;
+  }
+
+  const recent=S.jobs.slice().sort((x,y)=>y.ts-x.ts).slice(0,12);
+  h+=`<div class="card"><div class="between"><h2>Recent work</h2><button class="btn ghost sm" id="expCsv">Export</button></div>`;
+  h+=recent.length?recent.map(j=>`<div class="item between">
+      <div><b>${esc(party(j.partyId).name)}</b> <span class="muted">${fmtD(j.date)}</span>
+        <div class="muted num">${j.start.toFixed(1)} → ${j.end.toFixed(1)} · ${j.hours.toFixed(1)} hr @ ${money(j.rate)}</div></div>
+      <div style="text-align:right"><div class="disp num" style="font-size:21px;font-weight:700">${money(j.amount)}</div>
+        <span class="pill ${j.paid?'paid':'credit'}">${j.paid?j.mode||'paid':'credit'}</span>
+        <div><button class="btn ghost sm jShare" data-id="${j.id}" style="margin-top:6px">Send</button></div></div></div>`).join('')
+    :'<p class="muted">No jobs recorded yet. Every job starts with a photo of the hour meter.</p>';
+  h+='</div>';
+  app.innerHTML=h;
+
+  const nb=document.getElementById('newJob');if(nb)nb.onclick=startJob;
+  const eb=document.getElementById('endJob');if(eb)eb.onclick=endJob;
+  const cb=document.getElementById('cancelJob');if(cb)cb.onclick=()=>{if(confirm('Discard this running job?')){S.active=null;save();render()}};
+  document.getElementById('expCsv').onclick=exportCsv;
+  document.querySelectorAll('.jShare').forEach(b=>b.onclick=()=>shareJob(b.dataset.id));
+}
+
+async function startJob(){
+  if(!S.parties.length){toast('Add a party first (Parties tab)');tab='ledger';render();return}
+  const r=await captureReading('Start of work');if(!r)return;
+  const lr=lastReading();
+  let warn='';
+  if(lr!=null&&r.reading<lr-0.05)warn=`<div class="alertbar bad">This reading (${r.reading}) is lower than the last recorded end (${lr}). Check the photo — an hour meter never runs backwards.</div>`;
+  else if(lr!=null&&r.reading>lr+0.2)warn=`<div class="alertbar">Meter moved <b>${(r.reading-lr).toFixed(1)} hr</b> since the last job ended (${lr}). That time is not billed to anyone — confirm with the operator.</div>`;
+  openSheet(`<h2 class="disp">Start job</h2>${warn}
+    <label>Party</label><select id="jParty">${S.parties.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>
+    <label>Site / work detail (optional)</label><input id="jSite" placeholder="e.g. Hosur road plot, foundation digging">
+    <label>Rate per hour</label><input id="jRate" type="number" inputmode="numeric" value="${S.parties[0].rate||S.settings.rate}">
+    <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="x">Cancel</button><button class="btn" id="go">Start job</button></div>`);
+  document.getElementById('jParty').onchange=e=>{document.getElementById('jRate').value=party(e.target.value).rate||S.settings.rate};
+  document.getElementById('x').onclick=closeSheet;
+  document.getElementById('go').onclick=async()=>{
+    const g=await geo();
+    S.active={id:uid(),partyId:document.getElementById('jParty').value,site:document.getElementById('jSite').value,
+      rate:+document.getElementById('jRate').value,start:r.reading,startPhoto:r.photoId,startTs:Date.now(),date:today(),loc:g};
+    save();pushPhoto(r.photoId,{kind:'start',jobId:S.active.id,at:new Date().toISOString(),loc:g});
+    closeSheet();render();toast('Job started')};
+}
+
+async function endJob(){
+  const a=S.active,r=await captureReading('End of work');if(!r)return;
+  if(r.reading<a.start){toast('End reading is below start reading — retake');return endJob()}
+  const hours=+(r.reading-a.start).toFixed(1);
+  const s=S.settings,bill=Math.max(hours,+s.minHours||0);
+  openSheet(`<h2 class="disp">Close job</h2>
+    <div class="grid2" style="margin:10px 0">
+      <div class="meter plain"><div class="lbl">Start</div><div class="val num small">${a.start.toFixed(1)}</div></div>
+      <div class="meter plain"><div class="lbl">End</div><div class="val num small">${r.reading.toFixed(1)}</div></div></div>
+    <div class="meter"><div class="lbl">Hours worked</div><div class="val num">${hours.toFixed(1)}</div></div>
+    <div class="grid2"><div><label>Rate / hour</label><input id="eRate" type="number" value="${a.rate}"></div>
+      <div><label>Billed hours (min ${s.minHours})</label><input id="eHrs" type="number" step="0.1" value="${bill.toFixed(1)}"></div></div>
+    <div class="grid2"><div><label>Transport / shifting</label><input id="eTr" type="number" value="${s.transport||0}"></div>
+      <div><label>Diesel used (litre)</label><input id="eDz" type="number" step="0.1" placeholder="optional"></div></div>
+    <div class="meter" style="margin:12px 0"><div class="lbl">Amount payable</div><div class="val num" id="eAmt">—</div></div>
+    <label>Payment</label>
+    <div class="grid3"><button class="btn ghost sm pm" data-m="credit">Credit</button><button class="btn ghost sm pm" data-m="cash">Cash</button><button class="btn ghost sm pm" data-m="upi">UPI</button></div>
+    <div class="grid2" style="margin-top:14px"><button class="btn ghost" id="x">Back</button><button class="btn" id="go">Save job</button></div>`);
+  let mode='credit';
+  const calc=()=>{const v=(+document.getElementById('eHrs').value||0)*(+document.getElementById('eRate').value||0)+(+document.getElementById('eTr').value||0);
+    document.getElementById('eAmt').textContent=money(v);return Math.round(v)};
+  ['eRate','eHrs','eTr'].forEach(i=>document.getElementById(i).oninput=calc);calc();
+  document.querySelectorAll('.pm').forEach(b=>b.onclick=()=>{mode=b.dataset.m;
+    document.querySelectorAll('.pm').forEach(x=>{x.className='btn ghost sm pm'});b.className='btn sm pm'});
+  document.querySelector('.pm').click();
+  document.getElementById('x').onclick=closeSheet;
+  document.getElementById('go').onclick=async()=>{
+    const amt=calc(),dz=+document.getElementById('eDz').value||0;
+    const j={id:a.id,date:a.date,ts:Date.now(),partyId:a.partyId,site:a.site,start:a.start,end:r.reading,
+      hours,billHours:+document.getElementById('eHrs').value,rate:+document.getElementById('eRate').value,
+      transport:+document.getElementById('eTr').value||0,amount:amt,paid:mode!=='credit',mode:mode==='credit'?'':mode,
+      diesel:dz,startPhoto:a.startPhoto,endPhoto:r.photoId,loc:a.loc};
+    S.jobs.push(j);
+    if(j.paid)addPayment({id:uid(),partyId:j.partyId,party:party(j.partyId).name,amount:amt,date:j.date,mode:j.mode,jobId:j.id});
+    if(dz)S.diesel.push({id:uid(),date:j.date,litres:dz,amount:Math.round(dz*S.settings.dieselRate),jobId:j.id});
+    if(S.attendance[j.date]===undefined)S.attendance[j.date]='P';
+    S.active=null;save();
+    queue('job',{...j,party:party(j.partyId).name});
+    pushPhoto(r.photoId,{kind:'end',jobId:j.id,at:new Date().toISOString()});
+    closeSheet();render();shareJob(j.id);
+  };
+}
+
+function shareJob(id){
+  const j=S.jobs.find(x=>x.id===id);if(!j)return;const p=party(j.partyId);
+  const txt=billText(j),link=upiLink(j.amount,`${S.settings.machine} ${fmtD(j.date)}`);
+  openSheet(`<h2 class="disp">Send bill</h2>
+    <textarea id="bTxt" rows="13" style="font-size:14px">${esc(txt)}</textarea>
+    <button class="btn" id="bWa" style="margin-top:10px">Send on WhatsApp${p.phone?' to '+esc(p.name):''}</button>
+    ${link&&!j.paid?`<button class="btn dark" id="bUpi" style="margin-top:8px">Open UPI request — ${money(j.amount)}</button>`:''}
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn ghost sm" id="bPhotos" style="width:100%">View meter photos</button>
+      <button class="btn ghost sm" id="bPaid" style="width:100%">${j.paid?'Mark unpaid':'Mark received'}</button></div>
+    <button class="btn ghost" id="x" style="margin-top:10px">Close</button>`);
+  document.getElementById('bWa').onclick=()=>waSend(document.getElementById('bTxt').value,p.phone);
+  const u=document.getElementById('bUpi');if(u)u.onclick=()=>location.href=link;
+  document.getElementById('bPaid').onclick=()=>{
+    j.paid=!j.paid;
+    if(j.paid){if(!j.mode)j.mode='cash';
+      addPayment({id:uid(),partyId:j.partyId,party:p.name,amount:j.amount,date:today(),mode:j.mode,jobId:j.id})}
+    else{dropPaymentFor(j.id);j.mode=''}
+    save();queue('job',{...j,party:p.name});closeSheet();render()};
+  document.getElementById('bPhotos').onclick=async()=>{
+    const a=await getPhoto(j.startPhoto),b=await getPhoto(j.endPhoto);
+    openSheet(`<h2 class="disp">Meter photos</h2><p class="muted">Start ${j.start} → End ${j.end}</p>
+      ${a?`<img src="${a}" style="width:100%;border-radius:4px;margin-bottom:8px">`:'<p class="muted">Start photo not on this device.</p>'}
+      ${b?`<img src="${b}" style="width:100%;border-radius:4px">`:''}
+      <button class="btn ghost" id="x2" style="margin-top:10px">Close</button>`);
+    document.getElementById('x2').onclick=closeSheet};
+  document.getElementById('x').onclick=closeSheet;
+}
+
+/* --- LEDGER --- */
+function vLedger(){
+  let h=`<div class="card"><div class="between"><h2>Parties &amp; balance</h2><button class="btn sm" id="addP">Add party</button></div>`;
+  const tot=S.parties.reduce((a,p)=>a+Math.max(0,partyDue(p.id)),0);
+  h+=`<div class="stat" style="margin:10px 0"><div class="k">Total outstanding</div><div class="v num">${money(tot)}</div></div>`;
+  h+=S.parties.length?S.parties.map(p=>{const d=partyDue(p.id);
+    return `<div class="item between"><div><b>${esc(p.name)}</b><div class="muted">${esc(p.phone||'no number')} · ${money(p.rate||S.settings.rate)}/hr</div></div>
+      <div style="text-align:right"><div class="disp num" style="font-size:22px;font-weight:700;color:${d>0?'var(--due)':'var(--ok)'}">${money(d)}</div>
+      <button class="btn ghost sm pOpen" data-id="${p.id}">Open</button></div></div>`}).join('')
+    :'<p class="muted">No parties yet. Add the people you work for — rate and pending balance are tracked per party.</p>';
+  h+='</div>';
+  app.innerHTML=h;
+  document.getElementById('addP').onclick=()=>editParty();
+  document.querySelectorAll('.pOpen').forEach(b=>b.onclick=()=>openParty(b.dataset.id));
+}
+function editParty(id){
+  const p=id?party(id):{name:'',phone:'',rate:S.settings.rate};
+  openSheet(`<h2 class="disp">${id?'Edit':'New'} party</h2>
+    <label>Name</label><input id="pN" value="${esc(p.name)}">
+    <label>WhatsApp number</label><input id="pP" type="tel" inputmode="numeric" value="${esc(p.phone||'')}" placeholder="10 digits">
+    <label>Rate per hour</label><input id="pR" type="number" value="${p.rate||S.settings.rate}">
+    <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="x">Cancel</button><button class="btn" id="go">Save</button></div>`);
+  document.getElementById('x').onclick=closeSheet;
+  document.getElementById('go').onclick=()=>{
+    const n=document.getElementById('pN').value.trim();if(!n)return toast('Name required');
+    const row={id:id||uid(),name:n,phone:document.getElementById('pP').value.trim(),rate:+document.getElementById('pR').value};
+    if(id)Object.assign(party(id),row);else S.parties.push(row);
+    save();queue('party',row);closeSheet();render()};
+}
+function openParty(id){
+  const p=party(id),due=partyDue(id);
+  const rows=[...S.jobs.filter(j=>j.partyId===id).map(j=>({d:j.date,t:`Work ${j.hours.toFixed(1)} hr`,dr:j.amount,cr:0})),
+              ...S.payments.filter(x=>x.partyId===id).map(x=>({d:x.date,t:'Payment '+(x.mode||''),dr:0,cr:x.amount}))]
+              .sort((a,b)=>a.d<b.d?1:-1);
+  openSheet(`<h2 class="disp">${esc(p.name)}</h2>
+    <div class="meter" style="margin:10px 0"><div class="lbl">Balance to collect</div><div class="val num">${money(due)}</div></div>
+    <div class="grid2"><button class="btn" id="pPay">Record payment</button><button class="btn dark" id="pRemind">Send reminder</button></div>
+    <table style="margin-top:12px"><tr><th>Date</th><th>Detail</th><th style="text-align:right">Bill</th><th style="text-align:right">Paid</th></tr>
+    ${rows.map(r=>`<tr><td class="num">${fmtD(r.d)}</td><td>${esc(r.t)}</td><td class="num" style="text-align:right">${r.dr?money(r.dr):''}</td><td class="num" style="text-align:right;color:var(--ok)">${r.cr?money(r.cr):''}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No entries.</td></tr>'}</table>
+    <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="pEdit">Edit party</button><button class="btn ghost" id="x">Close</button></div>`);
+  document.getElementById('x').onclick=closeSheet;
+  document.getElementById('pEdit').onclick=()=>editParty(id);
+  document.getElementById('pRemind').onclick=()=>{
+    const t=`Namaste ${p.name},\n\nGentle reminder — ${money(due)} is pending for ${S.settings.machine} work.\n${S.settings.upi?`\nUPI: ${S.settings.upi}`:''}\n\n- ${S.settings.owner||''}`;
+    waSend(t,p.phone)};
+  document.getElementById('pPay').onclick=()=>{
+    openSheet(`<h2 class="disp">Payment from ${esc(p.name)}</h2>
+      <label>Amount received</label><input id="yA" type="number" inputmode="numeric" value="${Math.max(0,due)}" style="font-size:26px;font-weight:700;text-align:center">
+      <label>Date</label><input id="yD" type="date" value="${today()}">
+      <label>Mode</label><select id="yM"><option>upi</option><option>cash</option><option>bank</option><option>cheque</option></select>
+      <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="x">Cancel</button><button class="btn" id="go">Save payment</button></div>`);
+    document.getElementById('x').onclick=()=>openParty(id);
+    document.getElementById('go').onclick=()=>{
+      const row={id:uid(),partyId:id,party:p.name,amount:+document.getElementById('yA').value,
+        date:document.getElementById('yD').value,mode:document.getElementById('yM').value};
+      if(!row.amount)return toast('Enter amount');
+      addPayment(row);save();
+      /* mark the oldest credit jobs as settled, oldest first */
+      let left=row.amount;
+      S.jobs.filter(j=>j.partyId===id&&!j.paid).sort((a,b)=>a.ts-b.ts).forEach(j=>{
+        if(left>=j.amount){j.paid=true;j.mode=row.mode;left-=j.amount;queue('job',{...j,party:p.name})}});
+      save();closeSheet();render();toast('Payment recorded')}};
+}
+
+/* --- ATTENDANCE + SALARY --- */
+let attYM=today().slice(0,7);
+function vAtt(){
+  const [y,m]=attYM.split('-').map(Number),days=new Date(y,m,0).getDate();
+  const cnt={P:0,A:0,H:0};let ot=0;
+  for(let d=1;d<=days;d++){const k=`${attYM}-${String(d).padStart(2,'0')}`;const v=S.attendance[k];if(v&&cnt[v]!==undefined)cnt[v]++}
+  const s=S.settings,perDay=s.salary/(+s.workDays||26);
+  const earned=perDay*(cnt.P+cnt.H*0.5);
+  const otH=S.jobs.filter(j=>j.date.startsWith(attYM)).reduce((a,j)=>a+Math.max(0,j.hours-8),0);
+  const otPay=Math.round(otH*(+s.otRate||0));
+  const adv=S.advances.filter(a=>a.date.startsWith(attYM)).reduce((a,x)=>a+x.amount,0);
+  const net=Math.round(earned+otPay-adv);
+  let g='';
+  const first=new Date(y,m-1,1).getDay();
+  for(let i=0;i<first;i++)g+='<div></div>';
+  for(let d=1;d<=days;d++){const k=`${attYM}-${String(d).padStart(2,'0')}`;const v=S.attendance[k]||'';
+    g+=`<div class="dayb ${v} ${k>today()?'off':''}" data-k="${k}">${d}</div>`}
+  app.innerHTML=`<div class="card"><div class="between"><h2>Operator duty</h2>
+      <input type="month" id="ym" value="${attYM}" style="width:auto;padding:7px"></div>
+    <p class="muted">${esc(s.opName)} · tap a date to change: present → half → absent. Job days are marked present automatically.</p>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:10px">
+      ${['S','M','T','W','T','F','S'].map(x=>`<div class="muted" style="text-align:center;font-size:11px">${x}</div>`).join('')}${g}</div>
+    <div class="grid3" style="margin-top:12px">
+      <div class="stat"><div class="k">Present</div><div class="v num">${cnt.P}</div></div>
+      <div class="stat"><div class="k">Half</div><div class="v num">${cnt.H}</div></div>
+      <div class="stat"><div class="k">Absent</div><div class="v num">${cnt.A}</div></div></div></div>
+    <div class="card"><h2>Salary — ${new Date(y,m-1).toLocaleDateString('en-IN',{month:'long',year:'numeric'})}</h2>
+      <table>
+        <tr><td>Earned days (${cnt.P} + ${cnt.H} half)</td><td class="num" style="text-align:right">${money(earned)}</td></tr>
+        <tr><td>Overtime ${otH.toFixed(1)} hr @ ${money(s.otRate)}</td><td class="num" style="text-align:right">${money(otPay)}</td></tr>
+        <tr><td>Advance taken</td><td class="num" style="text-align:right;color:var(--due)">− ${money(adv)}</td></tr>
+      </table>
+      <div class="meter" style="margin-top:12px"><div class="lbl">Net payable</div><div class="val num">${money(net)}</div></div>
+      <div class="grid2" style="margin-top:10px"><button class="btn ghost" id="aAdv">Add advance</button><button class="btn" id="aSlip">Send slip</button></div></div>`;
+  document.getElementById('ym').onchange=e=>{attYM=e.target.value;render()};
+  document.querySelectorAll('.dayb').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k,cur=S.attendance[k]||'';
+    const nx={'':'P','P':'H','H':'A','A':''}[cur];
+    if(nx)S.attendance[k]=nx;else delete S.attendance[k];
+    save();queue('attendance',{date:k,status:nx||'-',operator:s.opName});render()});
+  document.getElementById('aAdv').onclick=()=>{
+    openSheet(`<h2 class="disp">Advance to ${esc(s.opName)}</h2>
+      <label>Amount</label><input id="vA" type="number" inputmode="numeric">
+      <label>Date</label><input id="vD" type="date" value="${today()}">
+      <label>Note</label><input id="vN" placeholder="optional">
+      <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="x">Cancel</button><button class="btn" id="go">Save</button></div>`);
+    document.getElementById('x').onclick=closeSheet;
+    document.getElementById('go').onclick=()=>{const row={id:uid(),amount:+document.getElementById('vA').value,
+      date:document.getElementById('vD').value,note:document.getElementById('vN').value,who:s.opName};
+      if(!row.amount)return toast('Enter amount');S.advances.push(row);save();queue('advance',row);closeSheet();render()}};
+  document.getElementById('aSlip').onclick=()=>{
+    const t=`*Salary — ${new Date(y,m-1).toLocaleDateString('en-IN',{month:'long',year:'numeric'})}*\n${s.opName}\n\nPresent: ${cnt.P} | Half: ${cnt.H} | Absent: ${cnt.A}\nEarned: ${money(earned)}\nOvertime ${otH.toFixed(1)} hr: ${money(otPay)}\nAdvance: -${money(adv)}\n\n*Net payable: ${money(net)}*`;
+    waSend(t,'')};
+}
+
+/* --- DASHBOARD --- */
+function vDash(){
+  const ym=today().slice(0,7),js=monthJobs(ym),s=S.settings;
+  const rev=js.reduce((a,j)=>a+j.amount,0);
+  const rec=S.payments.filter(p=>p.date.startsWith(ym)).reduce((a,p)=>a+p.amount,0);
+  const hrs=js.reduce((a,j)=>a+j.hours,0);
+  const dz=S.diesel.filter(d=>d.date.startsWith(ym)).reduce((a,d)=>a+d.amount,0);
+  const out=S.parties.reduce((a,p)=>a+Math.max(0,partyDue(p.id)),0);
+  const profit=rev-dz-(+s.salary||0);
+  const byParty={};js.forEach(j=>byParty[j.partyId]=(byParty[j.partyId]||0)+j.amount);
+  const top=Object.entries(byParty).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const days=[...new Set(js.map(j=>j.date))].length;
+  app.innerHTML=`<div class="card"><h2>This month</h2>
+    <div class="grid2" style="margin-top:8px">
+      <div class="stat"><div class="k">Billed</div><div class="v num">${money(rev)}</div></div>
+      <div class="stat"><div class="k">Collected</div><div class="v num" style="color:var(--ok)">${money(rec)}</div></div>
+      <div class="stat"><div class="k">Outstanding (all)</div><div class="v num" style="color:var(--due)">${money(out)}</div></div>
+      <div class="stat"><div class="k">Machine hours</div><div class="v num">${hrs.toFixed(1)}</div></div>
+      <div class="stat"><div class="k">Working days</div><div class="v num">${days}</div></div>
+      <div class="stat"><div class="k">Avg / hour</div><div class="v num">${money(hrs?rev/hrs:0)}</div></div></div></div>
+    <div class="card"><h2>Rough profit</h2>
+      <table><tr><td>Billing</td><td class="num" style="text-align:right">${money(rev)}</td></tr>
+      <tr><td>Diesel logged</td><td class="num" style="text-align:right">− ${money(dz)}</td></tr>
+      <tr><td>Operator salary</td><td class="num" style="text-align:right">− ${money(s.salary)}</td></tr></table>
+      <div class="meter" style="margin-top:10px"><div class="lbl">Before EMI, service &amp; repairs</div><div class="val num">${money(profit)}</div></div></div>
+    <div class="card"><h2>Top parties this month</h2>
+      ${top.length?top.map(([id,v])=>`<div class="item between"><span>${esc(party(id).name)}</span><b class="num">${money(v)}</b></div>`).join(''):'<p class="muted">No work billed this month yet.</p>'}</div>`;
+}
+
+/* --- SETTINGS --- */
+function vSet(){
+  const s=S.settings;
+  const F=(k,l,t='text',extra='')=>`<label>${l}</label><input id="s_${k}" type="${t}" value="${esc(s[k])}" ${extra}>`;
+  app.innerHTML=`<div class="card"><h2>Owner &amp; machine</h2>
+    ${F('owner','Owner name')}${F('machine','Machine')}
+    <div class="grid2"><div>${F('rate','Default rate / hr','number')}</div><div>${F('minHours','Minimum billed hours','number','step="0.5"')}</div></div>
+    <div class="grid2"><div>${F('transport','Default transport charge','number')}</div><div>${F('dieselRate','Diesel ₹ / litre','number')}</div></div></div>
+  <div class="card"><h2>Payment</h2>${F('upi','Your UPI ID','text','placeholder="name@bank"')}${F('upiName','Name shown on UPI')}</div>
+  <div class="card"><h2>Operator</h2>${F('opName','Operator name')}
+    <div class="grid2"><div>${F('salary','Monthly salary','number')}</div><div>${F('workDays','Working days / month','number')}</div></div>
+    ${F('otRate','Overtime ₹ / hr beyond 8 hr','number')}</div>
+  <div class="card"><h2>Service</h2>
+    <div class="grid2"><div>${F('serviceEvery','Service every (hours)','number')}</div><div>${F('lastService','Meter at last service','number','step="0.1"')}</div></div></div>
+  <div class="card"><h2>Google Sheet backup</h2>
+    <p class="muted">Paste the Apps Script web app URL from SETUP. Everything works without it — this only copies data to your Sheet and photos to Drive.</p>
+    ${F('script','Web app URL','url')}
+    <div class="grid2" style="margin-top:10px"><button class="btn ghost" id="sTest">Test link</button><button class="btn ghost" id="sPush">Sync now (${S.queue.length})</button></div></div>
+  <div class="card"><h2>Data</h2>
+    <div class="grid2"><button class="btn ghost" id="dExp">Backup file</button><button class="btn ghost" id="dImp">Restore file</button></div>
+    <button class="btn" id="sSave" style="margin-top:12px">Save settings</button></div>`;
+  document.getElementById('sSave').onclick=()=>{
+    Object.keys(s).forEach(k=>{const el=document.getElementById('s_'+k);if(!el)return;
+      s[k]=el.type==='number'?(+el.value||0):el.value.trim()});
+    save();queue('settings',{...s});toast('Saved');render()};
+  document.getElementById('sTest').onclick=async()=>{
+    const u=document.getElementById('s_script').value.trim();if(!u)return toast('Paste the URL first');
+    try{const r=await fetch(u);const j=await r.json();toast(j.ok?'Connected to '+j.sheet:'Reached, but error')}catch(e){toast('Could not reach the script')}};
+  document.getElementById('sPush').onclick=sync;
+  document.getElementById('dExp').onclick=()=>{
+    const b=new Blob([JSON.stringify(S)],{type:'application/json'});const a=document.createElement('a');
+    a.href=URL.createObjectURL(b);a.download=`machinelog-backup-${today()}.json`;a.click()};
+  document.getElementById('dImp').onclick=()=>{
+    const i=document.createElement('input');i.type='file';i.accept='.json';
+    i.onchange=()=>{const f=new FileReader();f.onload=()=>{try{S=JSON.parse(f.result);save();toast('Restored');render()}catch(e){toast('Bad file')}};f.readAsText(i.files[0])};i.click()};
+}
+
+function exportCsv(){
+  const rows=[['Date','Party','Site','Start','End','Hours','Billed hrs','Rate','Transport','Amount','Status','Mode','Diesel L']];
+  S.jobs.slice().sort((a,b)=>a.ts-b.ts).forEach(j=>rows.push([j.date,party(j.partyId).name,j.site||'',j.start,j.end,j.hours,j.billHours,j.rate,j.transport,j.amount,j.paid?'Paid':'Credit',j.mode||'',j.diesel||'']));
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`work-${today()}.csv`;a.click();
+}
+
+/* boot */
+openDB().then(()=>{document.getElementById('hTitle').textContent=S.settings.machine||'Machine Log';render()});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>

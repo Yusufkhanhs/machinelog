@@ -106,14 +106,13 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05
 <div class="sheet hide" id="sheet"><div id="sheetBody"></div></div>
 <input type="file" accept="image/*" capture="environment" id="cam" class="hide">
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js"></script>
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
-            serviceEvery:250,lastService:0,script:''},
+            serviceEvery:250,lastService:0,tenths:true,script:''},
   parties:[],jobs:[],payments:[],attendance:{},advances:[],diesel:[],active:null,queue:[]
 };
 let S=JSON.parse(localStorage.getItem(K)||'null')||structuredClone(DEF);
@@ -156,144 +155,66 @@ function calcBill(hrs,rate,transport,minH){
 async function geo(){return new Promise(r=>{if(!navigator.geolocation)return r(null);
   navigator.geolocation.getCurrentPosition(p=>r({lat:+p.coords.latitude.toFixed(5),lng:+p.coords.longitude.toFixed(5)}),()=>r(null),{timeout:6000})})}
 
-/* ---------------- camera + crop + OCR ---------------- */
+/* ---------------- camera + reading entry ---------------- */
 const cam=document.getElementById('cam');
 function shoot(){return new Promise(res=>{cam.value='';cam.onchange=()=>{const f=cam.files[0];if(!f)return res(null);
   const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(f)};cam.click()})}
 
-function shrink(dataUrl,max=1280,q=.72){return new Promise(r=>{const i=new Image();i.onload=()=>{
-  const s=Math.min(1,max/Math.max(i.width,i.height));const c=document.createElement('canvas');
-  c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);
+function shrink(dataUrl,max=1400,q=.78){return new Promise(r=>{const i=new Image();i.onload=()=>{
+  const sc=Math.min(1,max/Math.max(i.width,i.height));const c=document.createElement('canvas');
+  c.width=i.width*sc;c.height=i.height*sc;c.getContext('2d').drawImage(i,0,0,c.width,c.height);
   r(c.toDataURL('image/jpeg',q))};i.src=dataUrl})}
 
-/* crop UI -> returns {full, cropCanvas} */
-function cropStep(dataUrl,title){
-  return new Promise(res=>{
-    openSheet(`<h2 class="disp">${title}</h2>
-      <p class="muted">Drag the yellow box over the hour-meter digits only. Tighter box = better reading.</p>
-      <div id="cropWrap"><img id="cropImg" src="${dataUrl}"><div id="cropBox"><div class="handle"></div></div></div>
-      <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="cRetake">Retake</button><button class="btn" id="cOk">Read digits</button></div>`);
-    const wrap=document.getElementById('cropWrap'),img=document.getElementById('cropImg'),box=document.getElementById('cropBox');
-    let b={x:.12,y:.40,w:.72,h:.20};
-    const draw=()=>{const W=wrap.clientWidth,H=wrap.clientHeight;
-      box.style.left=b.x*W+'px';box.style.top=b.y*H+'px';box.style.width=b.w*W+'px';box.style.height=b.h*H+'px'};
-    img.onload=draw;setTimeout(draw,60);window.addEventListener('resize',draw);
-    let mode=null,st=null;
-    const pt=e=>{const r=wrap.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:(t.clientX-r.left)/r.width,y:(t.clientY-r.top)/r.height}};
-    box.addEventListener('pointerdown',e=>{e.preventDefault();mode=e.target.classList.contains('handle')?'rs':'mv';st={...pt(e),b:{...b}};box.setPointerCapture(e.pointerId)});
-    box.addEventListener('pointermove',e=>{if(!mode)return;e.preventDefault();const p=pt(e),dx=p.x-st.x,dy=p.y-st.y;
-      if(mode==='mv'){b.x=Math.min(Math.max(0,st.b.x+dx),1-b.w);b.y=Math.min(Math.max(0,st.b.y+dy),1-b.h)}
-      else{b.w=Math.min(Math.max(.12,st.b.w+dx),1-b.x);b.h=Math.min(Math.max(.06,st.b.h+dy),1-b.y)}draw()});
-    box.addEventListener('pointerup',()=>mode=null);
-    document.getElementById('cRetake').onclick=()=>{closeSheet();res(null)};
-    document.getElementById('cOk').onclick=()=>{
-      const i=new Image();i.onload=()=>{
-        const c=document.createElement('canvas');const sx=b.x*i.width,sy=b.y*i.height,sw=b.w*i.width,sh=b.h*i.height;
-        const sc=Math.max(1,Math.min(4,900/sw));c.width=sw*sc;c.height=sh*sc;
-        const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(i,sx,sy,sw,sh,0,0,c.width,c.height);
-        /* normalise contrast only — thresholding is done per OCR attempt below */
-        const d=x.getImageData(0,0,c.width,c.height),p=d.data;let mn=255,mx=0;
-        for(let k=0;k<p.length;k+=4){const g=(p[k]*.3+p[k+1]*.59+p[k+2]*.11)|0;p[k]=p[k+1]=p[k+2]=g;if(g<mn)mn=g;if(g>mx)mx=g}
-        const rg=Math.max(1,mx-mn);
-        for(let k=0;k<p.length;k+=4){const g=(p[k]-mn)*255/rg;p[k]=p[k+1]=p[k+2]=g}
-        x.putImageData(d,0,0);closeSheet();res(c)};
-      i.src=dataUrl}
-  })}
-
-/* ---- LCD seven-segment reading ----
-   Segment digits are strokes with gaps between them; Tesseract reads a broken 8 as 3 or 0.
-   So: Otsu threshold (adaptive, not a fixed cutoff), auto-invert for glowing LED meters,
-   then a closing pass that bridges the segment gaps. Several variants are tried and the
-   first plausible answer wins, checked against the last known meter reading. */
-function otsu(gray){
-  const h=new Array(256).fill(0);for(let i=0;i<gray.length;i++)h[gray[i]]++;
-  const N=gray.length;let sum=0;for(let t=0;t<256;t++)sum+=t*h[t];
-  let sB=0,wB=0,best=0,thr=128;
-  for(let t=0;t<256;t++){wB+=h[t];if(!wB)continue;const wF=N-wB;if(!wF)break;
-    sB+=t*h[t];const mB=sB/wB,mF=(sum-sB)/wF,v=wB*wF*(mB-mF)*(mB-mF);
-    if(v>best){best=v;thr=t}}
-  return thr;
-}
-function binarize(canvas,{invert=false,close=0}={}){
-  const x=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
-  const d=x.getImageData(0,0,W,H),p=d.data;
-  const g=new Uint8Array(W*H);for(let i=0;i<W*H;i++)g[i]=p[i*4];
-  const t=otsu(g);
-  /* ink = dark by default; a glowing LED meter is the other way round */
-  let ink=new Uint8Array(W*H);
-  for(let i=0;i<W*H;i++)ink[i]=(invert?g[i]>t:g[i]<t)?1:0;
-  for(let r=0;r<close;r++){
-    const dil=new Uint8Array(W*H);
-    for(let y=0;y<H;y++)for(let xx=0;xx<W;xx++){let v=0;
-      for(let dy=-1;dy<=1&&!v;dy++)for(let dx=-1;dx<=1;dx++){
-        const ny=y+dy,nx=xx+dx;if(ny<0||nx<0||ny>=H||nx>=W)continue;if(ink[ny*W+nx]){v=1;break}}
-      dil[y*W+xx]=v}
-    const ero=new Uint8Array(W*H);
-    for(let y=0;y<H;y++)for(let xx=0;xx<W;xx++){let v=1;
-      for(let dy=-1;dy<=1&&v;dy++)for(let dx=-1;dx<=1;dx++){
-        const ny=y+dy,nx=xx+dx;if(ny<0||nx<0||ny>=H||nx>=W)continue;if(!dil[ny*W+nx]){v=0;break}}
-      ero[y*W+xx]=v}
-    ink=ero;
-  }
-  const out=document.createElement('canvas');out.width=W;out.height=H;
-  const o=out.getContext('2d'),od=o.createImageData(W,H);
-  for(let i=0;i<W*H;i++){const v=ink[i]?0:255;od.data[i*4]=od.data[i*4+1]=od.data[i*4+2]=v;od.data[i*4+3]=255}
-  o.putImageData(od,0,0);return out;
-}
-/* A meter only ever goes forward, and never more than a long day's work at a time. */
+/* The meter reads e.g. 258745 on the glass, which is 25874.5 hours.
+   The operator types exactly what he sees; the app puts the decimal in. */
+const toHours=raw=>S.settings.tenths?(+raw)/10:(+raw);
+const showRaw=raw=>S.settings.tenths&&raw.length>1?raw.slice(0,-1)+'.'+raw.slice(-1):raw;
+/* A meter only runs forward, and never more than a long day between two photos. */
 function plausible(v,last){
   if(v==null||isNaN(v)||v<=0)return false;
-  if(last==null)return v<100000;
+  if(last==null)return true;
   return v>=last-0.05&&v<=last+24;
 }
-/* Segment displays often lose the decimal point to the reader. If the tenths digit
-   is missing, put it back using the shape of the last known reading. */
-function fixDecimal(str,last){
-  if(str.includes('.')||last==null)return str;
-  const n=+str;if(plausible(n,last))return str;
-  const withDot=str.slice(0,-1)+'.'+str.slice(-1);
-  return plausible(+withDot,last)?withDot:str;
-}
-let worker=null;
-async function ocrDigits(canvas,last){
-  const tries=[{invert:false,close:1},{invert:false,close:0},{invert:true,close:1},{invert:false,close:2}];
-  let first='';
-  try{
-    if(!worker){worker=await Tesseract.createWorker('eng');
-      await worker.setParameters({tessedit_char_whitelist:'0123456789.',tessedit_pageseg_mode:'7'})}
-    for(const opt of tries){
-      const {data}=await worker.recognize(binarize(canvas,opt));
-      const raw=(data.text||'').replace(/[^0-9.]/g,'').replace(/\.(?=.*\.)/g,'');
-      const m=raw.match(/\d{1,6}(\.\d)?/);
-      if(!m)continue;
-      const val=fixDecimal(m[0],last);
-      if(!first)first=val;
-      if(plausible(+val,last))return {val,sure:true};
-    }
-  }catch(e){}
-  return {val:first,sure:false};
-}
 
-/* full capture flow -> {reading, photoId}. `last` is the reading this one must follow. */
+/* photo, then a big keypad. Returns {reading, photoId}. */
 async function captureReading(label,last){
   const shot=await shoot(); if(!shot)return null;
   const small=await shrink(shot);
-  const c=await cropStep(small,label); if(!c)return captureReading(label,last);
-  openSheet(`<h2 class="disp">Reading the meter…</h2><p class="muted">First use takes ~15s to load the reader, then it is quick and works offline. You can always type the number yourself.</p>`);
-  const g=await ocrDigits(c,last);
   const pid='ph_'+uid(); await putPhoto(pid,small);
   return new Promise(res=>{
-    const flag=g.val&&!g.sure;
+    let raw='';
+    const pad=['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
     openSheet(`<h2 class="disp">${label}</h2>
-      ${flag?`<div class="alertbar bad">The scan came out as <b>${esc(g.val)}</b>, which does not fit after ${last!=null?last.toFixed(1):'the last reading'}. Check the photo and type the real number.</div>`:''}
-      <div class="meter plain" style="margin:10px 0"><div class="lbl">${flag?'Scanned (doubtful)':'Scanned'}</div><div class="val num">${g.val||'– – – –'}</div></div>
-      <label>Hour meter reading — check it against the photo below</label>
-      <input id="rdIn" type="number" step="0.1" inputmode="decimal" value="${flag?'':g.val}" style="font-size:28px;font-weight:700;text-align:center">
-      <img src="${small}" style="width:100%;margin-top:10px;border-radius:4px">
-      <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="rRetake">Retake photo</button><button class="btn" id="rOk">Confirm</button></div>`);
-    document.getElementById('rRetake').onclick=async()=>{closeSheet();res(await captureReading(label,last))};
-    document.getElementById('rOk').onclick=()=>{const v=parseFloat(document.getElementById('rdIn').value);
-      if(isNaN(v)){toast('Enter the reading');return}closeSheet();res({reading:v,photoId:pid})};
+      <img src="${small}" style="width:100%;border-radius:4px;max-height:34vh;object-fit:cover">
+      ${last!=null?`<p class="muted" style="margin:8px 0 0">Last reading was <b class="num">${last.toFixed(1)}</b> — this one must be higher.</p>`:''}
+      <div class="meter" style="margin:8px 0"><div class="lbl">Type the number on the meter</div>
+        <div class="val num" id="kVal">– – – –</div>
+        <div class="lbl" id="kHint" style="margin-top:4px">&nbsp;</div></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+        ${pad.map(k=>`<button class="btn ${k==='OK'?'':'ghost'}" data-k="${k}" style="width:100%;font-size:24px;min-height:58px">${k}</button>`).join('')}</div>
+      <button class="btn ghost" id="kBack" style="margin-top:10px">Retake photo</button>`);
+    const val=document.getElementById('kVal'),hint=document.getElementById('kHint');
+    const paint=()=>{
+      val.textContent=raw?showRaw(raw):'– – – –';
+      const v=toHours(raw);
+      if(!raw){hint.innerHTML='&nbsp;';return}
+      if(last==null){hint.textContent=S.settings.tenths?'= '+v.toFixed(1)+' hours':'';return}
+      const d=+(v-last).toFixed(1);
+      hint.style.color=plausible(v,last)?'#9aa5ae':'#ff8a80';
+      hint.textContent=d<0?'below the last reading':d>24?'more than 24 hours — check':d.toFixed(1)+' hours this job';
+    };
+    document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
+      const k=b.dataset.k;
+      if(k==='⌫')raw=raw.slice(0,-1);
+      else if(k==='OK'){
+        const v=toHours(raw);
+        if(!raw)return toast('Type the reading');
+        if(!plausible(v,last))return toast(v<=(last||0)?'Must be higher than '+last.toFixed(1):'That is more than 24 hours — check it');
+        closeSheet();return res({reading:v,photoId:pid});
+      } else if(raw.length<7)raw+=k;
+      paint()});
+    document.getElementById('kBack').onclick=async()=>{closeSheet();res(await captureReading(label,last))};
+    paint();
   })}
 
 /* ---------------- sheet ---------------- */
@@ -659,6 +580,10 @@ function vSet(){
   <div class="card"><h2>Operator</h2>${F('opName','Operator name')}
     <div class="grid2"><div>${F('salary','Monthly salary','number')}</div><div>${F('workDays','Working days / month','number')}</div></div>
     ${F('otRate','Overtime ₹ / hr beyond 8 hr','number')}</div>
+  <div class="card"><h2>Meter format</h2>
+    <p class="muted">Your meter shows 6 digits like <b>258745</b>. If the last digit is tenths of an hour, that is 25874.5 hours — leave this on. Getting it wrong changes every bill by 10x.</p>
+    <label>Last digit</label>
+    <select id="s_tenths"><option value="1"${s.settings&&s.settings.tenths?'':''}>Tenths of an hour (258745 = 25874.5)</option><option value="0">Whole hours (258745 = 258745)</option></select></div>
   <div class="card"><h2>Service</h2>
     <div class="grid2"><div>${F('serviceEvery','Service every (hours)','number')}</div><div>${F('lastService','Meter at last service','number','step="0.1"')}</div></div></div>
   <div class="card"><h2>Google Sheet backup</h2>
@@ -668,8 +593,10 @@ function vSet(){
   <div class="card"><h2>Data</h2>
     <div class="grid2"><button class="btn ghost" id="dExp">Backup file</button><button class="btn ghost" id="dImp">Restore file</button></div>
     <button class="btn" id="sSave" style="margin-top:12px">Save settings</button></div>`;
+  document.getElementById('s_tenths').value=s.tenths?'1':'0';
   document.getElementById('sSave').onclick=()=>{
     Object.keys(s).forEach(k=>{const el=document.getElementById('s_'+k);if(!el)return;
+      if(k==='tenths'){s.tenths=el.value==='1';return}
       s[k]=el.type==='number'?(+el.value||0):el.value.trim()});
     save();queue('settings',{...s});toast('Saved');render()};
   document.getElementById('sTest').onclick=async()=>{

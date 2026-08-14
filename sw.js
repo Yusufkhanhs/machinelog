@@ -1,6 +1,5 @@
-const C='machinelog-v1';
-const SHELL=['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png',
-  'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js'];
+const C='machinelog-v2';
+const SHELL=['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{
   self.skipWaiting();
   e.waitUntil(caches.open(C).then(c=>Promise.allSettled(SHELL.map(u=>c.add(u)))));
@@ -13,7 +12,7 @@ self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET'||u.includes('/exec')||u.includes('script.google'))return;
   e.respondWith(
     caches.match(e.request).then(hit=>hit||fetch(e.request).then(r=>{
-      if(r.ok&&(u.startsWith(self.location.origin)||u.includes('jsdelivr')||u.includes('tesseract')||u.includes('fonts.'))){
+      if(r.ok&&(u.startsWith(self.location.origin)||u.includes('fonts.'))){
         const cl=r.clone();caches.open(C).then(c=>c.put(e.request,cl));
       }
       return r;

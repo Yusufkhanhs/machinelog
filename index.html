@@ -191,43 +191,107 @@ function cropStep(dataUrl,title){
         const c=document.createElement('canvas');const sx=b.x*i.width,sy=b.y*i.height,sw=b.w*i.width,sh=b.h*i.height;
         const sc=Math.max(1,Math.min(4,900/sw));c.width=sw*sc;c.height=sh*sc;
         const x=c.getContext('2d');x.imageSmoothingQuality='high';x.drawImage(i,sx,sy,sw,sh,0,0,c.width,c.height);
-        /* grayscale + contrast stretch helps LCD/analog meters a lot */
+        /* normalise contrast only — thresholding is done per OCR attempt below */
         const d=x.getImageData(0,0,c.width,c.height),p=d.data;let mn=255,mx=0;
         for(let k=0;k<p.length;k+=4){const g=(p[k]*.3+p[k+1]*.59+p[k+2]*.11)|0;p[k]=p[k+1]=p[k+2]=g;if(g<mn)mn=g;if(g>mx)mx=g}
         const rg=Math.max(1,mx-mn);
-        for(let k=0;k<p.length;k+=4){let g=(p[k]-mn)*255/rg;g=g<95?0:g>150?255:g;p[k]=p[k+1]=p[k+2]=g}
+        for(let k=0;k<p.length;k+=4){const g=(p[k]-mn)*255/rg;p[k]=p[k+1]=p[k+2]=g}
         x.putImageData(d,0,0);closeSheet();res(c)};
       i.src=dataUrl}
   })}
 
+/* ---- LCD seven-segment reading ----
+   Segment digits are strokes with gaps between them; Tesseract reads a broken 8 as 3 or 0.
+   So: Otsu threshold (adaptive, not a fixed cutoff), auto-invert for glowing LED meters,
+   then a closing pass that bridges the segment gaps. Several variants are tried and the
+   first plausible answer wins, checked against the last known meter reading. */
+function otsu(gray){
+  const h=new Array(256).fill(0);for(let i=0;i<gray.length;i++)h[gray[i]]++;
+  const N=gray.length;let sum=0;for(let t=0;t<256;t++)sum+=t*h[t];
+  let sB=0,wB=0,best=0,thr=128;
+  for(let t=0;t<256;t++){wB+=h[t];if(!wB)continue;const wF=N-wB;if(!wF)break;
+    sB+=t*h[t];const mB=sB/wB,mF=(sum-sB)/wF,v=wB*wF*(mB-mF)*(mB-mF);
+    if(v>best){best=v;thr=t}}
+  return thr;
+}
+function binarize(canvas,{invert=false,close=0}={}){
+  const x=canvas.getContext('2d'),W=canvas.width,H=canvas.height;
+  const d=x.getImageData(0,0,W,H),p=d.data;
+  const g=new Uint8Array(W*H);for(let i=0;i<W*H;i++)g[i]=p[i*4];
+  const t=otsu(g);
+  /* ink = dark by default; a glowing LED meter is the other way round */
+  let ink=new Uint8Array(W*H);
+  for(let i=0;i<W*H;i++)ink[i]=(invert?g[i]>t:g[i]<t)?1:0;
+  for(let r=0;r<close;r++){
+    const dil=new Uint8Array(W*H);
+    for(let y=0;y<H;y++)for(let xx=0;xx<W;xx++){let v=0;
+      for(let dy=-1;dy<=1&&!v;dy++)for(let dx=-1;dx<=1;dx++){
+        const ny=y+dy,nx=xx+dx;if(ny<0||nx<0||ny>=H||nx>=W)continue;if(ink[ny*W+nx]){v=1;break}}
+      dil[y*W+xx]=v}
+    const ero=new Uint8Array(W*H);
+    for(let y=0;y<H;y++)for(let xx=0;xx<W;xx++){let v=1;
+      for(let dy=-1;dy<=1&&v;dy++)for(let dx=-1;dx<=1;dx++){
+        const ny=y+dy,nx=xx+dx;if(ny<0||nx<0||ny>=H||nx>=W)continue;if(!dil[ny*W+nx]){v=0;break}}
+      ero[y*W+xx]=v}
+    ink=ero;
+  }
+  const out=document.createElement('canvas');out.width=W;out.height=H;
+  const o=out.getContext('2d'),od=o.createImageData(W,H);
+  for(let i=0;i<W*H;i++){const v=ink[i]?0:255;od.data[i*4]=od.data[i*4+1]=od.data[i*4+2]=v;od.data[i*4+3]=255}
+  o.putImageData(od,0,0);return out;
+}
+/* A meter only ever goes forward, and never more than a long day's work at a time. */
+function plausible(v,last){
+  if(v==null||isNaN(v)||v<=0)return false;
+  if(last==null)return v<100000;
+  return v>=last-0.05&&v<=last+24;
+}
+/* Segment displays often lose the decimal point to the reader. If the tenths digit
+   is missing, put it back using the shape of the last known reading. */
+function fixDecimal(str,last){
+  if(str.includes('.')||last==null)return str;
+  const n=+str;if(plausible(n,last))return str;
+  const withDot=str.slice(0,-1)+'.'+str.slice(-1);
+  return plausible(+withDot,last)?withDot:str;
+}
 let worker=null;
-async function ocrDigits(canvas){
+async function ocrDigits(canvas,last){
+  const tries=[{invert:false,close:1},{invert:false,close:0},{invert:true,close:1},{invert:false,close:2}];
+  let first='';
   try{
     if(!worker){worker=await Tesseract.createWorker('eng');
       await worker.setParameters({tessedit_char_whitelist:'0123456789.',tessedit_pageseg_mode:'7'})}
-    const {data}=await worker.recognize(canvas);
-    const raw=(data.text||'').replace(/[^0-9.]/g,'');
-    const m=raw.match(/\d{1,6}(\.\d)?/);
-    return m?m[0]:'';
-  }catch(e){return ''}
+    for(const opt of tries){
+      const {data}=await worker.recognize(binarize(canvas,opt));
+      const raw=(data.text||'').replace(/[^0-9.]/g,'').replace(/\.(?=.*\.)/g,'');
+      const m=raw.match(/\d{1,6}(\.\d)?/);
+      if(!m)continue;
+      const val=fixDecimal(m[0],last);
+      if(!first)first=val;
+      if(plausible(+val,last))return {val,sure:true};
+    }
+  }catch(e){}
+  return {val:first,sure:false};
 }
 
-/* full capture flow -> {reading, photoId} */
-async function captureReading(label){
+/* full capture flow -> {reading, photoId}. `last` is the reading this one must follow. */
+async function captureReading(label,last){
   const shot=await shoot(); if(!shot)return null;
   const small=await shrink(shot);
-  const c=await cropStep(small,label); if(!c)return captureReading(label);
-  openSheet(`<h2 class="disp">Reading the meter…</h2><p class="muted">First time takes ~15s to load the reader. You can type the number yourself if it misreads.</p>`);
-  const guess=await ocrDigits(c);
+  const c=await cropStep(small,label); if(!c)return captureReading(label,last);
+  openSheet(`<h2 class="disp">Reading the meter…</h2><p class="muted">First use takes ~15s to load the reader, then it is quick and works offline. You can always type the number yourself.</p>`);
+  const g=await ocrDigits(c,last);
   const pid='ph_'+uid(); await putPhoto(pid,small);
   return new Promise(res=>{
+    const flag=g.val&&!g.sure;
     openSheet(`<h2 class="disp">${label}</h2>
-      <div class="meter plain" style="margin:10px 0"><div class="lbl">Scanned</div><div class="val num">${guess||'– – – –'}</div></div>
-      <label>Hour meter reading — check against the photo and fix if wrong</label>
-      <input id="rdIn" type="number" step="0.1" inputmode="decimal" value="${guess}" style="font-size:28px;font-weight:700;text-align:center">
+      ${flag?`<div class="alertbar bad">The scan came out as <b>${esc(g.val)}</b>, which does not fit after ${last!=null?last.toFixed(1):'the last reading'}. Check the photo and type the real number.</div>`:''}
+      <div class="meter plain" style="margin:10px 0"><div class="lbl">${flag?'Scanned (doubtful)':'Scanned'}</div><div class="val num">${g.val||'– – – –'}</div></div>
+      <label>Hour meter reading — check it against the photo below</label>
+      <input id="rdIn" type="number" step="0.1" inputmode="decimal" value="${flag?'':g.val}" style="font-size:28px;font-weight:700;text-align:center">
       <img src="${small}" style="width:100%;margin-top:10px;border-radius:4px">
       <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="rRetake">Retake photo</button><button class="btn" id="rOk">Confirm</button></div>`);
-    document.getElementById('rRetake').onclick=async()=>{closeSheet();res(await captureReading(label))};
+    document.getElementById('rRetake').onclick=async()=>{closeSheet();res(await captureReading(label,last))};
     document.getElementById('rOk').onclick=()=>{const v=parseFloat(document.getElementById('rdIn').value);
       if(isNaN(v)){toast('Enter the reading');return}closeSheet();res({reading:v,photoId:pid})};
   })}
@@ -343,8 +407,8 @@ function vWork(){
 
 async function startJob(){
   if(!S.parties.length){toast('Add a party first (Parties tab)');tab='ledger';render();return}
-  const r=await captureReading('Start of work');if(!r)return;
   const lr=lastReading();
+  const r=await captureReading('Start of work',lr);if(!r)return;
   let warn='';
   if(lr!=null&&r.reading<lr-0.05)warn=`<div class="alertbar bad">This reading (${r.reading}) is lower than the last recorded end (${lr}). Check the photo — an hour meter never runs backwards.</div>`;
   else if(lr!=null&&r.reading>lr+0.2)warn=`<div class="alertbar">Meter moved <b>${(r.reading-lr).toFixed(1)} hr</b> since the last job ended (${lr}). That time is not billed to anyone — confirm with the operator.</div>`;
@@ -364,7 +428,7 @@ async function startJob(){
 }
 
 async function endJob(){
-  const a=S.active,r=await captureReading('End of work');if(!r)return;
+  const a=S.active,r=await captureReading('End of work',a.start);if(!r)return;
   if(r.reading<a.start){toast('End reading is below start reading — retake');return endJob()}
   const hours=+(r.reading-a.start).toFixed(1);
   const s=S.settings,bill=Math.max(hours,+s.minHours||0);

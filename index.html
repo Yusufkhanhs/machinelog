@@ -109,11 +109,11 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-15-e';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-16-a';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
-            serviceEvery:250,lastService:0,tenths:true,script:''},
+            serviceEvery:250,lastService:0,tenths:true,role:'owner',script:''},
   parties:[],jobs:[],payments:[],attendance:{},advances:[],diesel:[],active:null,queue:[]
 };
 let S=JSON.parse(localStorage.getItem(K)||'null')||structuredClone(DEF);
@@ -142,7 +142,7 @@ function partyDue(id){
   const p=S.payments.filter(x=>x.partyId===id).reduce((a,x)=>a+x.amount,0);
   return b-p;
 }
-function addPayment(row){S.payments.push(row);queue('payment',row)}
+function addPayment(row){S.payments.push(row);queue('payment',{...row,partyId:row.partyId,jobId:row.jobId||''})}
 function dropPaymentFor(jobId){
   const i=S.payments.findIndex(p=>p.jobId===jobId);
   if(i>-1){queue('payment',{...S.payments[i],amount:0,mode:'reversed'});S.payments.splice(i,1)}
@@ -244,6 +244,69 @@ async function sync(){
   syncing=false;
 }
 window.addEventListener('online',sync);
+
+/* Pull what the other phone recorded. Anything still waiting in our own queue is
+   left alone — an unsent local change must never be overwritten by an older copy. */
+async function pullSheet(quiet){
+  const url=S.settings.script;
+  if(!url){if(!quiet)toast('Add the sheet URL in Setup first');return}
+  const el=document.getElementById('hSync');if(el)el.textContent='loading…';
+  try{
+    const r=await fetch(url+'?action=pull');
+    const j=await r.json();
+    if(!j.ok||!j.data)throw 0;
+    const D=j.data,pending=new Set(S.queue.map(q=>String(q.row&&(q.row.id||q.row.date))));
+    let added=0;
+
+    (D.parties||[]).forEach(p=>{
+      if(!p.id||pending.has(String(p.id)))return;
+      const ex=S.parties.find(x=>x.id===p.id);
+      const row={id:p.id,name:p.name,phone:String(p.phone||''),rate:+p.rate||S.settings.rate};
+      if(!ex){S.parties.push(row);added++}else Object.assign(ex,row);
+    });
+    const photo={};(D.photos||[]).forEach(x=>{if(x.id)photo[x.id]=x.driveUrl});
+
+    (D.jobs||[]).forEach(r=>{
+      if(!r.id||pending.has(String(r.id)))return;
+      if(String(r.paid)==='DELETED'){const i=S.jobs.findIndex(x=>x.id===r.id);if(i>-1)S.jobs.splice(i,1);return}
+      let pid=r.partyId;
+      if(!pid){const m=S.parties.find(x=>x.name===r.party);pid=m?m.id:null;
+        if(!pid&&r.party){pid=uid();S.parties.push({id:pid,name:r.party,phone:'',rate:+r.rate||S.settings.rate})}}
+      const row={id:String(r.id),date:String(r.date),ts:Date.parse(r.date)||Date.now(),partyId:pid,
+        site:r.site||'',start:+r.start,end:+r.end,hours:+r.hours,billHours:+r.billHours||+r.hours,
+        rate:+r.rate,transport:+r.transport||0,amount:+r.amount,paid:String(r.paid)==='PAID',
+        mode:r.mode||'',diesel:+r.diesel||0,startPhoto:r.startPhoto||'',endPhoto:r.endPhoto||'',
+        startUrl:photo[r.startPhoto]||'',endUrl:photo[r.endPhoto]||'',
+        editedAt:r.editedAt||'',editNote:r.editNote||''};
+      const ex=S.jobs.find(x=>x.id===row.id);
+      if(!ex){S.jobs.push(row);added++}
+      else if(String(r.editedAt||'')>String(ex.editedAt||''))Object.assign(ex,row);
+    });
+
+    (D.payments||[]).forEach(r=>{
+      if(!r.id||pending.has(String(r.id))||S.payments.find(x=>x.id===r.id))return;
+      let pid=r.partyId;
+      if(!pid){const m=S.parties.find(x=>x.name===r.party);pid=m?m.id:null}
+      if(!pid)return;
+      S.payments.push({id:String(r.id),partyId:pid,party:r.party,amount:+r.amount,
+        date:String(r.date),mode:r.mode||'',jobId:r.jobId||''});added++;
+    });
+
+    (D.attendance||[]).forEach(r=>{
+      if(!r.date||pending.has(String(r.date)))return;
+      const v=String(r.status||'');
+      if(v&&v!=='-'&&!S.attendance[r.date]){S.attendance[r.date]=v;added++}
+    });
+
+    (D.advances||[]).forEach(r=>{
+      if(!r.id||S.advances.find(x=>x.id===r.id))return;
+      S.advances.push({id:String(r.id),date:String(r.date),who:r.who,amount:+r.amount,note:r.note||''});added++;
+    });
+
+    save();render();
+    if(!quiet)toast(added?added+' new record(s) loaded':'Already up to date');
+  }catch(e){if(!quiet)toast('Could not load from the sheet')}
+}
 async function pushPhoto(pid,meta){
   if(!S.settings.script)return;
   const d=await getPhoto(pid); if(!d)return;
@@ -415,8 +478,10 @@ function shareJob(id){
   document.getElementById('bPhotos').onclick=async()=>{
     const a=await getPhoto(j.startPhoto),b=await getPhoto(j.endPhoto);
     openSheet(`<h2 class="disp">Meter photos</h2><p class="muted">Start ${j.start} → End ${j.end}</p>
-      ${a?`<img src="${a}" style="width:100%;border-radius:4px;margin-bottom:8px">`:'<p class="muted">Start photo not on this device.</p>'}
-      ${b?`<img src="${b}" style="width:100%;border-radius:4px">`:''}
+      ${a?`<img src="${a}" style="width:100%;border-radius:4px;margin-bottom:8px">`
+         :(j.startUrl?`<a class="btn ghost sm" href="${j.startUrl}" target="_blank" style="display:block;text-align:center;margin-bottom:8px">Open start photo in Drive</a>`:'<p class="muted">Start photo is on the other phone.</p>')}
+      ${b?`<img src="${b}" style="width:100%;border-radius:4px">`
+         :(j.endUrl?`<a class="btn ghost sm" href="${j.endUrl}" target="_blank" style="display:block;text-align:center">Open end photo in Drive</a>`:'')}
       <button class="btn ghost" id="x2" style="margin-top:10px">Close</button>`);
     document.getElementById('x2').onclick=closeSheet};
   document.getElementById('bEdit').onclick=()=>editJob(id);
@@ -525,7 +590,7 @@ async function pickContact(){
 function editParty(id){
   const p=id?party(id):{name:'',phone:'',rate:S.settings.rate};
   openSheet(`<h2 class="disp">${id?'Edit':'New'} party</h2>
-    <button class="btn dark" id="pPick" style="margin-bottom:4px">Choose from contacts</button>
+    ${canPickContact()?'<button class="btn dark" id="pPick" style="margin-bottom:4px">Choose from contacts</button>':''}
     <label>Name</label><input id="pN" value="${esc(p.name)}">
     <label>WhatsApp number</label><input id="pP" type="tel" inputmode="numeric" value="${esc(p.phone||'')}" placeholder="10 digits">
     <label>Rate per hour</label><input id="pR" type="number" value="${p.rate||S.settings.rate}">
@@ -689,6 +754,10 @@ function vSet(){
     <select id="s_tenths"><option value="1"${s.settings&&s.settings.tenths?'':''}>Tenths of an hour (258745 = 25874.5)</option><option value="0">Whole hours (258745 = 258745)</option></select></div>
   <div class="card"><h2>Service</h2>
     <div class="grid2"><div>${F('serviceEvery','Service every (hours)','number')}</div><div>${F('lastService','Meter at last service','number','step="0.1"')}</div></div></div>
+  <div class="card"><h2>This device</h2>
+    <p class="muted">The operator's phone records jobs. The owner's phone loads them from the sheet to bill and track balances.</p>
+    <label>Role</label><select id="s_role"><option value="owner">Owner — loads jobs from the sheet</option><option value="operator">Operator — records jobs on site</option></select>
+    <button class="btn dark" id="sPull" style="margin-top:10px">Load latest from sheet</button></div>
   <div class="card"><h2>Google Sheet backup</h2>
     <p class="muted">Paste the Apps Script web app URL from SETUP. Everything works without it — this only copies data to your Sheet and photos to Drive.</p>
     ${F('script','Web app URL','url')}
@@ -699,6 +768,8 @@ function vSet(){
     <div class="grid2"><button class="btn ghost" id="dExp">Backup file</button><button class="btn ghost" id="dImp">Restore file</button></div>
     <button class="btn" id="sSave" style="margin-top:12px">Save settings</button></div>`;
   document.getElementById('s_tenths').value=s.tenths?'1':'0';
+  document.getElementById('s_role').value=s.role||'owner';
+  document.getElementById('sPull').onclick=()=>pullSheet(false);
   document.getElementById('sSave').onclick=()=>{
     Object.keys(s).forEach(k=>{const el=document.getElementById('s_'+k);if(!el)return;
       if(k==='tenths'){s.tenths=el.value==='1';return}
@@ -738,7 +809,11 @@ function exportCsv(){
 }
 
 /* boot */
-openDB().then(()=>{document.getElementById('hTitle').textContent=S.settings.machine||'Machine Log';render()});
+openDB().then(()=>{
+  document.getElementById('hTitle').textContent=S.settings.machine||'Machine Log';
+  render();
+  if(S.settings.role==='owner'&&S.settings.script&&navigator.onLine)setTimeout(()=>pullSheet(true),800);
+});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body>

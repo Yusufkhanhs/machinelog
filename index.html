@@ -109,11 +109,11 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-16-b';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-16-d';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
-            serviceEvery:250,lastService:0,tenths:true,role:'owner',script:'',token:'',joined:''},
+            serviceEvery:250,lastService:0,tenths:true,role:'owner',lang:'en',script:'',token:'',joined:''},
   parties:[],jobs:[],payments:[],attendance:{},advances:[],diesel:[],active:null,queue:[]
 };
 let S=JSON.parse(localStorage.getItem(K)||'null')||structuredClone(DEF);
@@ -132,6 +132,92 @@ const openDB=()=>new Promise(r=>{const q=indexedDB.open('jcbphotos',1);
   q.onupgradeneeded=e=>e.target.result.createObjectStore('p');q.onsuccess=e=>{idb=e.target.result;r()}});
 const putPhoto=(id,d)=>new Promise(r=>{idb.transaction('p','readwrite').objectStore('p').put(d,id).onsuccess=r});
 const getPhoto=id=>new Promise(r=>{const q=idb.transaction('p').objectStore('p').get(id);q.onsuccess=()=>r(q.result)});
+
+/* ---------------- languages ---------------- */
+const LANGS={en:'English',kn:'ಕನ್ನಡ',hi:'हिन्दी',ta:'தமிழ்',te:'తెలుగు'};
+const T={
+en:{work:'Work',parties:'Parties',duty:'Duty',report:'Report',setup:'Setup',
+ startJob:'Start a job',takeStart:'Take start photo',jobRunning:'Job running',live:'Live',
+ stopJob:'Stop job & take end photo',cancelJob:'Cancel this job',lastMeter:'Last recorded meter',
+ noJobs:'No jobs yet',party:'Party',site:'Site / work detail',ratePerHr:'Rate per hour',
+ startWork:'Start of work',endWork:'End of work',typeNumber:'Type the number on the meter',
+ lastWas:'Last reading was',mustHigher:'this one must be higher',hoursThisJob:'hours this job',
+ belowLast:'below the last reading',over24:'more than 24 hours — check',retakePhoto:'Retake photo',
+ closeJob:'Close job',start:'Start',end:'End',hoursWorked:'Hours worked',billedHours:'Billed hours',
+ transport:'Transport / shifting',diesel:'Diesel used (litre)',amountPayable:'Amount payable',
+ payment:'Payment',credit:'Credit',cash:'Cash',upi:'UPI',saveJob:'Save job',sendBill:'Send bill',
+ sendWA:'Send on WhatsApp',viewPhotos:'View meter photos',close:'Close',cancel:'Cancel',back:'Back',
+ save:'Save',language:'Language',thisDevice:'This device',pair:'Pair this phone',
+ awaiting:'waiting for owner approval',connected:'connected',yourName:'Your name',
+ requestAccess:'Request access',enterReading:'Type the reading',jobStarted:'Job started',
+ noParty:'Ask the owner to add parties first',present:'Present',absent:'Absent',machine:'Machine'},
+
+kn:{work:'ಕೆಲಸ',parties:'ಪಾರ್ಟಿಗಳು',duty:'ಹಾಜರಾತಿ',report:'ವರದಿ',setup:'ಸೆಟ್ಟಿಂಗ್',
+ startJob:'ಕೆಲಸ ಪ್ರಾರಂಭಿಸಿ',takeStart:'ಆರಂಭದ ಫೋಟೋ ತೆಗೆಯಿರಿ',jobRunning:'ಕೆಲಸ ನಡೆಯುತ್ತಿದೆ',live:'ಚಾಲ್ತಿ',
+ stopJob:'ಕೆಲಸ ನಿಲ್ಲಿಸಿ, ಕೊನೆಯ ಫೋಟೋ ತೆಗೆಯಿರಿ',cancelJob:'ಈ ಕೆಲಸ ರದ್ದುಮಾಡಿ',lastMeter:'ಕೊನೆಯ ಮೀಟರ್ ರೀಡಿಂಗ್',
+ noJobs:'ಇನ್ನೂ ಕೆಲಸ ಇಲ್ಲ',party:'ಪಾರ್ಟಿ',site:'ಸ್ಥಳ / ಕೆಲಸದ ವಿವರ',ratePerHr:'ಗಂಟೆಗೆ ದರ',
+ startWork:'ಕೆಲಸದ ಆರಂಭ',endWork:'ಕೆಲಸದ ಅಂತ್ಯ',typeNumber:'ಮೀಟರ್‌ನಲ್ಲಿರುವ ಸಂಖ್ಯೆ ಟೈಪ್ ಮಾಡಿ',
+ lastWas:'ಕೊನೆಯ ರೀಡಿಂಗ್',mustHigher:'ಇದು ಹೆಚ್ಚಿರಬೇಕು',hoursThisJob:'ಈ ಕೆಲಸದ ಗಂಟೆ',
+ belowLast:'ಕೊನೆಯ ರೀಡಿಂಗ್‌ಗಿಂತ ಕಡಿಮೆ',over24:'24 ಗಂಟೆಗಿಂತ ಹೆಚ್ಚು — ಪರಿಶೀಲಿಸಿ',retakePhoto:'ಮತ್ತೆ ಫೋಟೋ ತೆಗೆಯಿರಿ',
+ closeJob:'ಕೆಲಸ ಮುಗಿಸಿ',start:'ಆರಂಭ',end:'ಅಂತ್ಯ',hoursWorked:'ಕೆಲಸದ ಗಂಟೆ',billedHours:'ಬಿಲ್ ಗಂಟೆ',
+ transport:'ಸಾಗಾಣಿಕೆ',diesel:'ಡೀಸೆಲ್ (ಲೀಟರ್)',amountPayable:'ಪಾವತಿಸಬೇಕಾದ ಮೊತ್ತ',
+ payment:'ಪಾವತಿ',credit:'ಸಾಲ',cash:'ನಗದು',upi:'ಯುಪಿಐ',saveJob:'ಕೆಲಸ ಉಳಿಸಿ',sendBill:'ಬಿಲ್ ಕಳುಹಿಸಿ',
+ sendWA:'ವಾಟ್ಸಾಪ್‌ನಲ್ಲಿ ಕಳುಹಿಸಿ',viewPhotos:'ಮೀಟರ್ ಫೋಟೋ ನೋಡಿ',close:'ಮುಚ್ಚಿ',cancel:'ರದ್ದು',back:'ಹಿಂದೆ',
+ save:'ಉಳಿಸಿ',language:'ಭಾಷೆ',thisDevice:'ಈ ಫೋನ್',pair:'ಈ ಫೋನ್ ಜೋಡಿಸಿ',
+ awaiting:'ಮಾಲೀಕರ ಅನುಮೋದನೆಗೆ ಕಾಯುತ್ತಿದೆ',connected:'ಸಂಪರ್ಕಗೊಂಡಿದೆ',yourName:'ನಿಮ್ಮ ಹೆಸರು',
+ requestAccess:'ಅನುಮತಿ ಕೇಳಿ',enterReading:'ರೀಡಿಂಗ್ ಟೈಪ್ ಮಾಡಿ',jobStarted:'ಕೆಲಸ ಪ್ರಾರಂಭವಾಗಿದೆ',
+ noParty:'ಮೊದಲು ಮಾಲೀಕರು ಪಾರ್ಟಿ ಸೇರಿಸಬೇಕು',present:'ಹಾಜರು',absent:'ಗೈರು',machine:'ಯಂತ್ರ'},
+
+hi:{work:'काम',parties:'पार्टी',duty:'हाज़िरी',report:'रिपोर्ट',setup:'सेटिंग',
+ startJob:'काम शुरू करें',takeStart:'शुरू का फोटो लें',jobRunning:'काम चल रहा है',live:'चालू',
+ stopJob:'काम बंद करें और आखिरी फोटो लें',cancelJob:'यह काम रद्द करें',lastMeter:'पिछली मीटर रीडिंग',
+ noJobs:'अभी कोई काम नहीं',party:'पार्टी',site:'जगह / काम का विवरण',ratePerHr:'प्रति घंटा दर',
+ startWork:'काम की शुरुआत',endWork:'काम का अंत',typeNumber:'मीटर पर लिखा नंबर टाइप करें',
+ lastWas:'पिछली रीडिंग थी',mustHigher:'यह उससे ज़्यादा होनी चाहिए',hoursThisJob:'इस काम के घंटे',
+ belowLast:'पिछली रीडिंग से कम',over24:'24 घंटे से ज़्यादा — जाँचें',retakePhoto:'फिर से फोटो लें',
+ closeJob:'काम पूरा करें',start:'शुरू',end:'अंत',hoursWorked:'काम के घंटे',billedHours:'बिल के घंटे',
+ transport:'ढुलाई',diesel:'डीज़ल (लीटर)',amountPayable:'देय राशि',
+ payment:'भुगतान',credit:'उधार',cash:'नकद',upi:'यूपीआई',saveJob:'काम सेव करें',sendBill:'बिल भेजें',
+ sendWA:'व्हाट्सएप पर भेजें',viewPhotos:'मीटर के फोटो देखें',close:'बंद करें',cancel:'रद्द',back:'पीछे',
+ save:'सेव',language:'भाषा',thisDevice:'यह फोन',pair:'यह फोन जोड़ें',
+ awaiting:'मालिक की मंज़ूरी का इंतज़ार',connected:'जुड़ा हुआ',yourName:'आपका नाम',
+ requestAccess:'अनुमति माँगें',enterReading:'रीडिंग टाइप करें',jobStarted:'काम शुरू हुआ',
+ noParty:'पहले मालिक पार्टी जोड़ें',present:'हाज़िर',absent:'गैरहाज़िर',machine:'मशीन'},
+
+ta:{work:'வேலை',parties:'பார்ட்டி',duty:'வருகை',report:'அறிக்கை',setup:'அமைப்பு',
+ startJob:'வேலையைத் தொடங்கு',takeStart:'தொடக்க புகைப்படம் எடு',jobRunning:'வேலை நடக்கிறது',live:'இயங்குகிறது',
+ stopJob:'வேலையை நிறுத்தி இறுதி புகைப்படம் எடு',cancelJob:'இந்த வேலையை ரத்து செய்',lastMeter:'கடைசி மீட்டர் அளவு',
+ noJobs:'இதுவரை வேலை இல்லை',party:'பார்ட்டி',site:'இடம் / வேலை விவரம்',ratePerHr:'மணிக்கு விலை',
+ startWork:'வேலையின் தொடக்கம்',endWork:'வேலையின் முடிவு',typeNumber:'மீட்டரில் உள்ள எண்ணை உள்ளிடு',
+ lastWas:'கடைசி அளவு',mustHigher:'இது அதிகமாக இருக்க வேண்டும்',hoursThisJob:'இந்த வேலையின் மணிநேரம்',
+ belowLast:'கடைசி அளவை விட குறைவு',over24:'24 மணிநேரத்திற்கு மேல் — சரிபார்',retakePhoto:'மீண்டும் புகைப்படம் எடு',
+ closeJob:'வேலையை முடி',start:'தொடக்கம்',end:'முடிவு',hoursWorked:'வேலை மணிநேரம்',billedHours:'பில் மணிநேரம்',
+ transport:'போக்குவரத்து',diesel:'டீசல் (லிட்டர்)',amountPayable:'செலுத்த வேண்டிய தொகை',
+ payment:'கட்டணம்',credit:'கடன்',cash:'ரொக்கம்',upi:'யுபிஐ',saveJob:'வேலையை சேமி',sendBill:'பில் அனுப்பு',
+ sendWA:'வாட்ஸ்அப்பில் அனுப்பு',viewPhotos:'மீட்டர் புகைப்படங்கள்',close:'மூடு',cancel:'ரத்து',back:'பின்',
+ save:'சேமி',language:'மொழி',thisDevice:'இந்த ஃபோன்',pair:'இந்த ஃபோனை இணை',
+ awaiting:'உரிமையாளர் அனுமதிக்காக காத்திருக்கிறது',connected:'இணைக்கப்பட்டது',yourName:'உங்கள் பெயர்',
+ requestAccess:'அனுமதி கேள்',enterReading:'அளவை உள்ளிடு',jobStarted:'வேலை தொடங்கியது',
+ noParty:'முதலில் உரிமையாளர் பார்ட்டி சேர்க்க வேண்டும்',present:'வருகை',absent:'வரவில்லை',machine:'இயந்திரம்'},
+
+te:{work:'పని',parties:'పార్టీలు',duty:'హాజరు',report:'నివేదిక',setup:'సెట్టింగ్',
+ startJob:'పని ప్రారంభించు',takeStart:'ప్రారంభ ఫోటో తీయి',jobRunning:'పని జరుగుతోంది',live:'నడుస్తోంది',
+ stopJob:'పని ఆపి చివరి ఫోటో తీయి',cancelJob:'ఈ పని రద్దు చేయి',lastMeter:'చివరి మీటర్ రీడింగ్',
+ noJobs:'ఇంకా పని లేదు',party:'పార్టీ',site:'స్థలం / పని వివరాలు',ratePerHr:'గంటకు ధర',
+ startWork:'పని ప్రారంభం',endWork:'పని ముగింపు',typeNumber:'మీటర్‌పై ఉన్న సంఖ్య టైప్ చేయి',
+ lastWas:'చివరి రీడింగ్',mustHigher:'ఇది ఎక్కువగా ఉండాలి',hoursThisJob:'ఈ పని గంటలు',
+ belowLast:'చివరి రీడింగ్ కంటే తక్కువ',over24:'24 గంటలకు మించి — తనిఖీ చేయి',retakePhoto:'మళ్ళీ ఫోటో తీయి',
+ closeJob:'పని ముగించు',start:'ప్రారంభం',end:'ముగింపు',hoursWorked:'పని గంటలు',billedHours:'బిల్ గంటలు',
+ transport:'రవాణా',diesel:'డీజిల్ (లీటర్)',amountPayable:'చెల్లించవలసిన మొత్తం',
+ payment:'చెల్లింపు',credit:'అప్పు',cash:'నగదు',upi:'యూపీఐ',saveJob:'పని సేవ్ చేయి',sendBill:'బిల్ పంపు',
+ sendWA:'వాట్సాప్‌లో పంపు',viewPhotos:'మీటర్ ఫోటోలు చూడు',close:'మూసివేయి',cancel:'రద్దు',back:'వెనుకకు',
+ save:'సేవ్',language:'భాష',thisDevice:'ఈ ఫోన్',pair:'ఈ ఫోన్ జోడించు',
+ awaiting:'యజమాని ఆమోదం కోసం వేచి ఉంది',connected:'అనుసంధానమైంది',yourName:'మీ పేరు',
+ requestAccess:'అనుమతి అడుగు',enterReading:'రీడింగ్ టైప్ చేయి',jobStarted:'పని ప్రారంభమైంది',
+ noParty:'ముందుగా యజమాని పార్టీ జోడించాలి',present:'హాజరు',absent:'గైర్హాజరు',machine:'యంత్రం'}
+};
+const t=k=>((T[S.settings.lang]||T.en)[k]||T.en[k]||k);
+const isOp=()=>S.settings.role==='operator';
 
 /* ---------------- helpers ---------------- */
 const party=id=>S.parties.find(p=>p.id===id)||{name:'—',rate:S.settings.rate};
@@ -187,13 +273,13 @@ async function captureReading(label,last){
     const pad=['1','2','3','4','5','6','7','8','9','⌫','0','OK'];
     openSheet(`<h2 class="disp">${label}</h2>
       <img src="${small}" style="width:100%;border-radius:4px;max-height:34vh;object-fit:cover">
-      ${last!=null?`<p class="muted" style="margin:8px 0 0">Last reading was <b class="num">${last.toFixed(1)}</b> — this one must be higher.</p>`:''}
-      <div class="meter" style="margin:8px 0"><div class="lbl">Type the number on the meter</div>
+      ${last!=null?`<p class="muted" style="margin:8px 0 0">${t('lastWas')} <b class="num">${last.toFixed(1)}</b> — ${t('mustHigher')}.</p>`:''}
+      <div class="meter" style="margin:8px 0"><div class="lbl">${t('typeNumber')}</div>
         <div class="val num" id="kVal">– – – –</div>
         <div class="lbl" id="kHint" style="margin-top:4px">&nbsp;</div></div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
         ${pad.map(k=>`<button class="btn ${k==='OK'?'':'ghost'}" data-k="${k}" style="width:100%;font-size:24px;min-height:58px">${k}</button>`).join('')}</div>
-      <button class="btn ghost" id="kBack" style="margin-top:10px">Retake photo</button>`);
+      <button class="btn ghost" id="kBack" style="margin-top:10px">${t('retakePhoto')}</button>`);
     const val=document.getElementById('kVal'),hint=document.getElementById('kHint');
     const paint=()=>{
       val.textContent=raw?showRaw(raw):'– – – –';
@@ -202,14 +288,14 @@ async function captureReading(label,last){
       if(last==null){hint.textContent=S.settings.tenths?'= '+v.toFixed(1)+' hours':'';return}
       const d=+(v-last).toFixed(1);
       hint.style.color=plausible(v,last)?'#9aa5ae':'#ff8a80';
-      hint.textContent=d<0?'below the last reading':d>24?'more than 24 hours — check':d.toFixed(1)+' hours this job';
+      hint.textContent=d<0?t('belowLast'):d>24?t('over24'):d.toFixed(1)+' '+t('hoursThisJob');
     };
     document.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{
       const k=b.dataset.k;
       if(k==='⌫')raw=raw.slice(0,-1);
       else if(k==='OK'){
         const v=toHours(raw);
-        if(!raw)return toast('Type the reading');
+        if(!raw)return toast(t('enterReading'));
         if(!plausible(v,last))return toast(v<=(last||0)?'Must be higher than '+last.toFixed(1):'That is more than 24 hours — check it');
         closeSheet();return res({reading:v,photoId:pid});
       } else if(raw.length<7)raw+=k;
@@ -265,9 +351,14 @@ async function handleInvite(){
   save();
   return new Promise(res=>{
     openSheet(`<h2 class="disp">Join ${esc(cfg.m||'this machine')}</h2>
-      <p class="muted">Your name is shown to the owner so he knows which phone to approve.</p>
-      <label>Your name</label><input id="jN" placeholder="e.g. Ramesh">
+      <label>Language / ಭಾಷೆ / भाषा</label>
+      <select id="jL">${Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+      <label id="jNL">Your name</label><input id="jN" placeholder="e.g. Ramesh">
       <button class="btn" id="jGo" style="margin-top:12px">Request access</button>`);
+    document.getElementById('jL').onchange=e=>{
+      S.settings.lang=e.target.value;save();
+      document.getElementById('jNL').textContent=t('yourName');
+      document.getElementById('jGo').textContent=t('requestAccess')};
     document.getElementById('jGo').onclick=async()=>{
       const n=document.getElementById('jN').value.trim();
       if(!n)return toast('Enter your name');
@@ -416,7 +507,20 @@ let tab='work';
 const app=document.getElementById('app');
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   tab=b.dataset.tab;document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));render()});
-function render(){({work:vWork,ledger:vLedger,att:vAtt,dash:vDash,set:vSet}[tab])();sync()}
+function applyRole(){
+  const op=isOp(),allow=['work','set'];
+  let n=0;
+  document.querySelectorAll('nav button').forEach(b=>{
+    const show=!op||allow.includes(b.dataset.tab);
+    b.style.display=show?'':'none';if(show)n++;
+    const lbl={work:'work',ledger:'parties',att:'duty',dash:'report',set:'setup'}[b.dataset.tab];
+    b.lastChild.textContent=t(lbl);
+  });
+  document.querySelector('nav').style.gridTemplateColumns='repeat('+n+',1fr)';
+  if(op&&!allow.includes(tab))tab='work';
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x.dataset.tab===tab));
+}
+function render(){applyRole();({work:vWork,ledger:vLedger,att:vAtt,dash:vDash,set:vSet}[tab])();sync()}
 
 /* --- WORK --- */
 function vWork(){
@@ -424,23 +528,26 @@ function vWork(){
   const svcNext=s.lastService+ +s.serviceEvery, hrsToSvc=lr!=null?svcNext-lr:null;
   let h='';
   if(hrsToSvc!=null&&hrsToSvc<=20)h+=`<div class="alertbar ${hrsToSvc<=0?'bad':''}">Service ${hrsToSvc<=0?`overdue by ${Math.abs(hrsToSvc).toFixed(1)} hr`:`due in ${hrsToSvc.toFixed(1)} hr`} — next at ${svcNext.toFixed(1)} hr.</div>`;
-  const dueTot=S.parties.reduce((x,p)=>x+Math.max(0,partyDue(p.id)),0);
-  if(dueTot>0&&!a)h+=`<div class="alertbar">${money(dueTot)} pending collection from ${S.parties.filter(p=>partyDue(p.id)>0).length} party(s).</div>`;
+  if(!isOp()){
+    const dueTot=S.parties.reduce((x,p)=>x+Math.max(0,partyDue(p.id)),0);
+    if(dueTot>0&&!a)h+=`<div class="alertbar">${money(dueTot)} pending collection from ${S.parties.filter(p=>partyDue(p.id)>0).length} party(s).</div>`;
+  }
 
   if(a){
     const p=party(a.partyId);
-    h+=`<div class="card"><div class="between"><h2>Job running</h2><span class="pill warn">Live</span></div>
+    h+=`<div class="card"><div class="between"><h2>${t('jobRunning')}</h2><span class="pill warn">${t('live')}</span></div>
       <div class="muted">${esc(p.name)}${a.site?' · '+esc(a.site):''} · started ${new Date(a.startTs).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div>
-      <div class="meter" style="margin:12px 0"><div class="lbl">Start hour meter</div><div class="val num">${a.start.toFixed(1)}</div></div>
-      <button class="btn" id="endJob">Stop job &amp; take end photo</button>
-      <button class="btn ghost sm" id="cancelJob" style="width:100%;margin-top:8px">Cancel this job</button></div>`;
+      <div class="meter" style="margin:12px 0"><div class="lbl">${t('start')}</div><div class="val num">${a.start.toFixed(1)}</div></div>
+      <button class="btn" id="endJob">${t('stopJob')}</button>
+      <button class="btn ghost sm" id="cancelJob" style="width:100%;margin-top:8px">${t('cancelJob')}</button></div>`;
   }else{
-    h+=`<div class="card"><h2>Start a job</h2>
-      <div class="meter plain" style="margin:8px 0"><div class="lbl">Last recorded meter</div><div class="val num small">${lr!=null?lr.toFixed(1):'no jobs yet'}</div></div>
-      <button class="btn" id="newJob">Take start photo</button></div>`;
+    h+=`<div class="card"><h2>${t('startJob')}</h2>
+      <div class="meter plain" style="margin:8px 0"><div class="lbl">${t('lastMeter')}</div><div class="val num small">${lr!=null?lr.toFixed(1):t('noJobs')}</div></div>
+      <button class="btn" id="newJob">${t('takeStart')}</button></div>`;
   }
 
-  const recent=S.jobs.slice().sort((x,y)=>y.ts-x.ts).slice(0,12);
+  const recent=isOp()?[]:S.jobs.slice().sort((x,y)=>y.ts-x.ts).slice(0,12);
+  if(!isOp()){
   h+=`<div class="card"><div class="between"><h2>Recent work</h2><button class="btn ghost sm" id="expCsv">Export</button></div>`;
   h+=recent.length?recent.map(j=>`<div class="item between">
       <div><b>${esc(party(j.partyId).name)}</b> <span class="muted">${fmtD(j.date)}</span>
@@ -449,28 +556,28 @@ function vWork(){
         <span class="pill ${j.paid?'paid':'credit'}">${j.paid?j.mode||'paid':'credit'}</span>
         <div><button class="btn ghost sm jShare" data-id="${j.id}" style="margin-top:6px">Send</button></div></div></div>`).join('')
     :'<p class="muted">No jobs recorded yet. Every job starts with a photo of the hour meter.</p>';
-  h+='</div>';
+  h+='</div>';}
   app.innerHTML=h;
 
   const nb=document.getElementById('newJob');if(nb)nb.onclick=startJob;
   const eb=document.getElementById('endJob');if(eb)eb.onclick=endJob;
   const cb=document.getElementById('cancelJob');if(cb)cb.onclick=()=>{if(confirm('Discard this running job?')){S.active=null;save();render()}};
-  document.getElementById('expCsv').onclick=exportCsv;
+  const ex=document.getElementById('expCsv');if(ex)ex.onclick=exportCsv;
   document.querySelectorAll('.jShare').forEach(b=>b.onclick=()=>shareJob(b.dataset.id));
 }
 
 async function startJob(){
-  if(!S.parties.length){toast('Add a party first (Parties tab)');tab='ledger';render();return}
+  if(!S.parties.length){toast(isOp()?t('noParty'):'Add a party first (Parties tab)');if(!isOp()){tab='ledger';render()}return}
   const lr=lastReading();
-  const r=await captureReading('Start of work',lr);if(!r)return;
+  const r=await captureReading(t('startWork'),lr);if(!r)return;
   let warn='';
   if(lr!=null&&r.reading<lr-0.05)warn=`<div class="alertbar bad">This reading (${r.reading}) is lower than the last recorded end (${lr}). Check the photo — an hour meter never runs backwards.</div>`;
   else if(lr!=null&&r.reading>lr+0.2)warn=`<div class="alertbar">Meter moved <b>${(r.reading-lr).toFixed(1)} hr</b> since the last job ended (${lr}). That time is not billed to anyone — confirm with the operator.</div>`;
   openSheet(`<h2 class="disp">Start job</h2>${warn}
-    <label>Party</label><select id="jParty">${S.parties.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>
-    <label>Site / work detail (optional)</label><input id="jSite" placeholder="e.g. Hosur road plot, foundation digging">
-    <label>Rate per hour</label><input id="jRate" type="number" inputmode="numeric" value="${S.parties[0].rate||S.settings.rate}">
-    <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="x">Cancel</button><button class="btn" id="go">Start job</button></div>`);
+    <label>${t('party')}</label><select id="jParty">${S.parties.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select>
+    <label>${t('site')}</label><input id="jSite" placeholder="e.g. Hosur road plot, foundation digging">
+    <label>${t('ratePerHr')}</label><input id="jRate" type="number" inputmode="numeric" value="${S.parties[0].rate||S.settings.rate}">
+    <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="x">${t('cancel')}</button><button class="btn" id="go">${t('startJob')}</button></div>`);
   document.getElementById('jParty').onchange=e=>{document.getElementById('jRate').value=party(e.target.value).rate||S.settings.rate};
   document.getElementById('x').onclick=closeSheet;
   document.getElementById('go').onclick=async()=>{
@@ -478,27 +585,27 @@ async function startJob(){
     S.active={id:uid(),partyId:document.getElementById('jParty').value,site:document.getElementById('jSite').value,
       rate:+document.getElementById('jRate').value,start:r.reading,startPhoto:r.photoId,startTs:Date.now(),date:today(),loc:g};
     save();pushPhoto(r.photoId,{kind:'start',jobId:S.active.id,at:new Date().toISOString(),loc:g});
-    closeSheet();render();toast('Job started')};
+    closeSheet();render();toast(t('jobStarted'))};
 }
 
 async function endJob(){
-  const a=S.active,r=await captureReading('End of work',a.start);if(!r)return;
+  const a=S.active,r=await captureReading(t('endWork'),a.start);if(!r)return;
   if(r.reading<a.start){toast('End reading is below start reading — retake');return endJob()}
   const hours=+(r.reading-a.start).toFixed(1);
   const s=S.settings,bill=Math.max(hours,+s.minHours||0);
-  openSheet(`<h2 class="disp">Close job</h2>
+  openSheet(`<h2 class="disp">${t('closeJob')}</h2>
     <div class="grid2" style="margin:10px 0">
-      <div class="meter plain"><div class="lbl">Start</div><div class="val num small">${a.start.toFixed(1)}</div></div>
-      <div class="meter plain"><div class="lbl">End</div><div class="val num small">${r.reading.toFixed(1)}</div></div></div>
-    <div class="meter"><div class="lbl">Hours worked</div><div class="val num">${hours.toFixed(1)}</div></div>
-    <div class="grid2"><div><label>Rate / hour</label><input id="eRate" type="number" value="${a.rate}"></div>
-      <div><label>Billed hours (min ${s.minHours})</label><input id="eHrs" type="number" step="0.1" value="${bill.toFixed(1)}"></div></div>
-    <div class="grid2"><div><label>Transport / shifting</label><input id="eTr" type="number" value="${s.transport||0}"></div>
-      <div><label>Diesel used (litre)</label><input id="eDz" type="number" step="0.1" placeholder="optional"></div></div>
-    <div class="meter" style="margin:12px 0"><div class="lbl">Amount payable</div><div class="val num" id="eAmt">—</div></div>
-    <label>Payment</label>
-    <div class="grid3"><button class="btn ghost sm pm" data-m="credit">Credit</button><button class="btn ghost sm pm" data-m="cash">Cash</button><button class="btn ghost sm pm" data-m="upi">UPI</button></div>
-    <div class="grid2" style="margin-top:14px"><button class="btn ghost" id="x">Back</button><button class="btn" id="go">Save job</button></div>`);
+      <div class="meter plain"><div class="lbl">${t('start')}</div><div class="val num small">${a.start.toFixed(1)}</div></div>
+      <div class="meter plain"><div class="lbl">${t('end')}</div><div class="val num small">${r.reading.toFixed(1)}</div></div></div>
+    <div class="meter"><div class="lbl">${t('hoursWorked')}</div><div class="val num">${hours.toFixed(1)}</div></div>
+    <div class="grid2"><div><label>${t('ratePerHr')}</label><input id="eRate" type="number" value="${a.rate}"></div>
+      <div><label>${t('billedHours')} (min ${s.minHours})</label><input id="eHrs" type="number" step="0.1" value="${bill.toFixed(1)}"></div></div>
+    <div class="grid2"><div><label>${t('transport')}</label><input id="eTr" type="number" value="${s.transport||0}"></div>
+      <div><label>${t('diesel')}</label><input id="eDz" type="number" step="0.1" placeholder="optional"></div></div>
+    <div class="meter" style="margin:12px 0"><div class="lbl">${t('amountPayable')}</div><div class="val num" id="eAmt">—</div></div>
+    <label>${t('payment')}</label>
+    <div class="grid3"><button class="btn ghost sm pm" data-m="credit">${t('credit')}</button><button class="btn ghost sm pm" data-m="cash">${t('cash')}</button><button class="btn ghost sm pm" data-m="upi">${t('upi')}</button></div>
+    <div class="grid2" style="margin-top:14px"><button class="btn ghost" id="x">${t('back')}</button><button class="btn" id="go">${t('saveJob')}</button></div>`);
   let mode='credit';
   const calc=()=>{const v=(+document.getElementById('eHrs').value||0)*(+document.getElementById('eRate').value||0)+(+document.getElementById('eTr').value||0);
     document.getElementById('eAmt').textContent=money(v);return Math.round(v)};
@@ -527,15 +634,15 @@ async function endJob(){
 function shareJob(id){
   const j=S.jobs.find(x=>x.id===id);if(!j)return;const p=party(j.partyId);
   const txt=billText(j),link=upiLink(j.amount,`${S.settings.machine} ${fmtD(j.date)}`);
-  openSheet(`<h2 class="disp">Send bill</h2>
+  openSheet(`<h2 class="disp">${t('sendBill')}</h2>
     <textarea id="bTxt" rows="13" style="font-size:14px">${esc(txt)}</textarea>
-    <button class="btn" id="bWa" style="margin-top:10px">Send on WhatsApp${p.phone?' to '+esc(p.name):''}</button>
+    <button class="btn" id="bWa" style="margin-top:10px">${t('sendWA')}${p.phone?' — '+esc(p.name):''}</button>
     ${link&&!j.paid?`<button class="btn dark" id="bUpi" style="margin-top:8px">Open UPI request — ${money(j.amount)}</button>`:''}
     <div class="grid2" style="margin-top:8px">
-      <button class="btn ghost sm" id="bPhotos" style="width:100%">View meter photos</button>
+      <button class="btn ghost sm" id="bPhotos" style="width:100%">${t('viewPhotos')}</button>
       <button class="btn ghost sm" id="bPaid" style="width:100%">${j.paid?'Mark unpaid':'Mark received'}</button></div>
-    <button class="btn ghost sm" id="bEdit" style="width:100%;margin-top:8px">Correct this job</button>
-    <button class="btn ghost" id="x" style="margin-top:10px">Close</button>`);
+    ${isOp()?'':'<button class="btn ghost sm" id="bEdit" style="width:100%;margin-top:8px">Correct this job</button>'}
+    <button class="btn ghost" id="x" style="margin-top:10px">${t('close')}</button>`);
   document.getElementById('bWa').onclick=()=>waSend(document.getElementById('bTxt').value,p.phone);
   const u=document.getElementById('bUpi');if(u)u.onclick=()=>location.href=link;
   document.getElementById('bPaid').onclick=()=>{
@@ -553,7 +660,7 @@ function shareJob(id){
          :(j.endUrl?`<a class="btn ghost sm" href="${j.endUrl}" target="_blank" style="display:block;text-align:center">Open end photo in Drive</a>`:'')}
       <button class="btn ghost" id="x2" style="margin-top:10px">Close</button>`);
     document.getElementById('x2').onclick=closeSheet};
-  document.getElementById('bEdit').onclick=()=>editJob(id);
+  const be=document.getElementById('bEdit');if(be)be.onclick=()=>editJob(id);
   document.getElementById('x').onclick=closeSheet;
 }
 
@@ -725,10 +832,10 @@ function openParty(id){
 let attYM=today().slice(0,7);
 function vAtt(){
   const [y,m]=attYM.split('-').map(Number),days=new Date(y,m,0).getDate();
-  const cnt={P:0,A:0,H:0};let ot=0;
+  const cnt={P:0,A:0,H:0};
   for(let d=1;d<=days;d++){const k=`${attYM}-${String(d).padStart(2,'0')}`;const v=S.attendance[k];if(v&&cnt[v]!==undefined)cnt[v]++}
   const s=S.settings,perDay=s.salary/(+s.workDays||26);
-  const earned=perDay*(cnt.P+cnt.H*0.5);
+  const earned=perDay*(cnt.P+cnt.H*0.5);   /* H only survives for months recorded before this change */
   const otH=S.jobs.filter(j=>j.date.startsWith(attYM)).reduce((a,j)=>a+Math.max(0,j.hours-8),0);
   const otPay=Math.round(otH*(+s.otRate||0));
   const adv=S.advances.filter(a=>a.date.startsWith(attYM)).reduce((a,x)=>a+x.amount,0);
@@ -740,12 +847,12 @@ function vAtt(){
     g+=`<div class="dayb ${v} ${k>today()?'off':''}" data-k="${k}">${d}</div>`}
   app.innerHTML=`<div class="card"><div class="between"><h2>Operator duty</h2>
       <input type="month" id="ym" value="${attYM}" style="width:auto;padding:7px"></div>
-    <p class="muted">${esc(s.opName)} · tap a date to change: present → half → absent. Job days are marked present automatically.</p>
+    <p class="muted">${esc(s.opName)} · tap a date to switch present → absent → clear. One entry per day. Days with a job are marked present automatically.</p>
     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:10px">
       ${['S','M','T','W','T','F','S'].map(x=>`<div class="muted" style="text-align:center;font-size:11px">${x}</div>`).join('')}${g}</div>
     <div class="grid3" style="margin-top:12px">
       <div class="stat"><div class="k">Present</div><div class="v num">${cnt.P}</div></div>
-      <div class="stat"><div class="k">Half</div><div class="v num">${cnt.H}</div></div>
+      <div class="stat"><div class="k">Half (old)</div><div class="v num">${cnt.H}</div></div>
       <div class="stat"><div class="k">Absent</div><div class="v num">${cnt.A}</div></div></div></div>
     <div class="card"><h2>Salary — ${new Date(y,m-1).toLocaleDateString('en-IN',{month:'long',year:'numeric'})}</h2>
       <table>
@@ -758,7 +865,7 @@ function vAtt(){
   document.getElementById('ym').onchange=e=>{attYM=e.target.value;render()};
   document.querySelectorAll('.dayb').forEach(b=>b.onclick=()=>{
     const k=b.dataset.k,cur=S.attendance[k]||'';
-    const nx={'':'P','P':'H','H':'A','A':''}[cur];
+    const nx={'':'P','P':'A','A':''}[cur];   /* one entry per day: present or absent */
     if(nx)S.attendance[k]=nx;else delete S.attendance[k];
     save();queue('attendance',{date:k,status:nx||'-',operator:s.opName});render()});
   document.getElementById('aAdv').onclick=()=>{
@@ -809,7 +916,21 @@ function vDash(){
 function vSet(){
   const s=S.settings;
   const F=(k,l,t='text',extra='')=>`<label>${l}</label><input id="s_${k}" type="${t}" value="${esc(s[k])}" ${extra}>`;
+  const langSel=`<label>${t('language')}</label><select id="s_lang">${Object.entries(LANGS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>`;
+
+  if(isOp()){
+    app.innerHTML=`<div class="card"><h2>${t('setup')}</h2>
+      ${langSel}
+      <p class="muted" style="margin-top:12px">${t('machine')}: <b>${esc(s.machine)}</b><br>${t('thisDevice')}: <b>${s.joined==='approved'?t('connected'):t('awaiting')}</b></p>
+      <button class="btn ghost" id="sPull" style="margin-top:10px">${t('save')} / ${t('close')}</button></div>
+      <div class="card"><p class="muted">App version ${BUILD}</p></div>`;
+    document.getElementById('s_lang').value=s.lang||'en';
+    document.getElementById('s_lang').onchange=e=>{s.lang=e.target.value;save();render()};
+    document.getElementById('sPull').onclick=()=>pullSheet(false);
+    return;
+  }
   app.innerHTML=`<div class="card"><h2>Owner &amp; machine</h2>
+    ${langSel}
     ${F('owner','Owner name')}${F('machine','Machine')}
     <div class="grid2"><div>${F('rate','Default rate / hr','number')}</div><div>${F('minHours','Minimum billed hours','number','step="0.5"')}</div></div>
     <div class="grid2"><div>${F('transport','Default transport charge','number')}</div><div>${F('dieselRate','Diesel ₹ / litre','number')}</div></div></div>
@@ -843,6 +964,8 @@ function vSet(){
     <button class="btn" id="sSave" style="margin-top:12px">Save settings</button></div>`;
   document.getElementById('s_tenths').value=s.tenths?'1':'0';
   document.getElementById('s_role').value=s.role||'owner';
+  document.getElementById('s_lang').value=s.lang||'en';
+  document.getElementById('s_lang').onchange=e=>{s.lang=e.target.value;save();render()};
   document.getElementById('sPull').onclick=()=>pullSheet(false);
   document.getElementById('sJoin').onclick=async()=>{
     if(!s.script||!s.token)return toast('Add the sheet URL and password first');

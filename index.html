@@ -109,11 +109,11 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-16-d';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-16-f';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
-            serviceEvery:250,lastService:0,tenths:true,role:'owner',lang:'en',script:'',token:'',joined:''},
+            serviceEvery:250,lastService:0,tenths:true,role:'owner',lang:'en',lastMeter:null,script:'',token:'',joined:''},
   parties:[],jobs:[],payments:[],attendance:{},advances:[],diesel:[],active:null,queue:[]
 };
 let S=JSON.parse(localStorage.getItem(K)||'null')||structuredClone(DEF);
@@ -150,7 +150,7 @@ en:{work:'Work',parties:'Parties',duty:'Duty',report:'Report',setup:'Setup',
  save:'Save',language:'Language',thisDevice:'This device',pair:'Pair this phone',
  awaiting:'waiting for owner approval',connected:'connected',yourName:'Your name',
  requestAccess:'Request access',enterReading:'Type the reading',jobStarted:'Job started',
- noParty:'Ask the owner to add parties first',present:'Present',absent:'Absent',machine:'Machine'},
+ noParty:'Ask the owner to add parties first',present:'Present',absent:'Absent',machine:'Machine',advance:'Advance taken',readOnlyDuty:'This is your record as marked by the owner. If a day looks wrong, tell him.'},
 
 kn:{work:'ಕೆಲಸ',parties:'ಪಾರ್ಟಿಗಳು',duty:'ಹಾಜರಾತಿ',report:'ವರದಿ',setup:'ಸೆಟ್ಟಿಂಗ್',
  startJob:'ಕೆಲಸ ಪ್ರಾರಂಭಿಸಿ',takeStart:'ಆರಂಭದ ಫೋಟೋ ತೆಗೆಯಿರಿ',jobRunning:'ಕೆಲಸ ನಡೆಯುತ್ತಿದೆ',live:'ಚಾಲ್ತಿ',
@@ -166,7 +166,7 @@ kn:{work:'ಕೆಲಸ',parties:'ಪಾರ್ಟಿಗಳು',duty:'ಹಾಜರ
  save:'ಉಳಿಸಿ',language:'ಭಾಷೆ',thisDevice:'ಈ ಫೋನ್',pair:'ಈ ಫೋನ್ ಜೋಡಿಸಿ',
  awaiting:'ಮಾಲೀಕರ ಅನುಮೋದನೆಗೆ ಕಾಯುತ್ತಿದೆ',connected:'ಸಂಪರ್ಕಗೊಂಡಿದೆ',yourName:'ನಿಮ್ಮ ಹೆಸರು',
  requestAccess:'ಅನುಮತಿ ಕೇಳಿ',enterReading:'ರೀಡಿಂಗ್ ಟೈಪ್ ಮಾಡಿ',jobStarted:'ಕೆಲಸ ಪ್ರಾರಂಭವಾಗಿದೆ',
- noParty:'ಮೊದಲು ಮಾಲೀಕರು ಪಾರ್ಟಿ ಸೇರಿಸಬೇಕು',present:'ಹಾಜರು',absent:'ಗೈರು',machine:'ಯಂತ್ರ'},
+ noParty:'ಮೊದಲು ಮಾಲೀಕರು ಪಾರ್ಟಿ ಸೇರಿಸಬೇಕು',present:'ಹಾಜರು',absent:'ಗೈರು',machine:'ಯಂತ್ರ',advance:'ಪಡೆದ ಮುಂಗಡ',readOnlyDuty:'ಇದು ಮಾಲೀಕರು ಗುರುತಿಸಿದ ನಿಮ್ಮ ದಾಖಲೆ. ಯಾವುದೇ ದಿನ ತಪ್ಪಾಗಿದ್ದರೆ ಅವರಿಗೆ ತಿಳಿಸಿ.'},
 
 hi:{work:'काम',parties:'पार्टी',duty:'हाज़िरी',report:'रिपोर्ट',setup:'सेटिंग',
  startJob:'काम शुरू करें',takeStart:'शुरू का फोटो लें',jobRunning:'काम चल रहा है',live:'चालू',
@@ -182,7 +182,7 @@ hi:{work:'काम',parties:'पार्टी',duty:'हाज़िरी',r
  save:'सेव',language:'भाषा',thisDevice:'यह फोन',pair:'यह फोन जोड़ें',
  awaiting:'मालिक की मंज़ूरी का इंतज़ार',connected:'जुड़ा हुआ',yourName:'आपका नाम',
  requestAccess:'अनुमति माँगें',enterReading:'रीडिंग टाइप करें',jobStarted:'काम शुरू हुआ',
- noParty:'पहले मालिक पार्टी जोड़ें',present:'हाज़िर',absent:'गैरहाज़िर',machine:'मशीन'},
+ noParty:'पहले मालिक पार्टी जोड़ें',present:'हाज़िर',absent:'गैरहाज़िर',machine:'मशीन',advance:'लिया गया अग्रिम',readOnlyDuty:'यह मालिक द्वारा दर्ज आपका रिकॉर्ड है। कोई दिन गलत लगे तो उन्हें बताएं।'},
 
 ta:{work:'வேலை',parties:'பார்ட்டி',duty:'வருகை',report:'அறிக்கை',setup:'அமைப்பு',
  startJob:'வேலையைத் தொடங்கு',takeStart:'தொடக்க புகைப்படம் எடு',jobRunning:'வேலை நடக்கிறது',live:'இயங்குகிறது',
@@ -198,7 +198,7 @@ ta:{work:'வேலை',parties:'பார்ட்டி',duty:'வருகை
  save:'சேமி',language:'மொழி',thisDevice:'இந்த ஃபோன்',pair:'இந்த ஃபோனை இணை',
  awaiting:'உரிமையாளர் அனுமதிக்காக காத்திருக்கிறது',connected:'இணைக்கப்பட்டது',yourName:'உங்கள் பெயர்',
  requestAccess:'அனுமதி கேள்',enterReading:'அளவை உள்ளிடு',jobStarted:'வேலை தொடங்கியது',
- noParty:'முதலில் உரிமையாளர் பார்ட்டி சேர்க்க வேண்டும்',present:'வருகை',absent:'வரவில்லை',machine:'இயந்திரம்'},
+ noParty:'முதலில் உரிமையாளர் பார்ட்டி சேர்க்க வேண்டும்',present:'வருகை',absent:'வரவில்லை',machine:'இயந்திரம்',advance:'பெற்ற முன்பணம்',readOnlyDuty:'இது உரிமையாளர் பதிவு செய்த உங்கள் பதிவு. ஏதேனும் நாள் தவறாக இருந்தால் அவரிடம் சொல்லுங்கள்.'},
 
 te:{work:'పని',parties:'పార్టీలు',duty:'హాజరు',report:'నివేదిక',setup:'సెట్టింగ్',
  startJob:'పని ప్రారంభించు',takeStart:'ప్రారంభ ఫోటో తీయి',jobRunning:'పని జరుగుతోంది',live:'నడుస్తోంది',
@@ -214,7 +214,7 @@ te:{work:'పని',parties:'పార్టీలు',duty:'హాజరు',r
  save:'సేవ్',language:'భాష',thisDevice:'ఈ ఫోన్',pair:'ఈ ఫోన్ జోడించు',
  awaiting:'యజమాని ఆమోదం కోసం వేచి ఉంది',connected:'అనుసంధానమైంది',yourName:'మీ పేరు',
  requestAccess:'అనుమతి అడుగు',enterReading:'రీడింగ్ టైప్ చేయి',jobStarted:'పని ప్రారంభమైంది',
- noParty:'ముందుగా యజమాని పార్టీ జోడించాలి',present:'హాజరు',absent:'గైర్హాజరు',machine:'యంత్రం'}
+ noParty:'ముందుగా యజమాని పార్టీ జోడించాలి',present:'హాజరు',absent:'గైర్హాజరు',machine:'యంత్రం',advance:'తీసుకున్న అడ్వాన్స్',readOnlyDuty:'ఇది యజమాని గుర్తించిన మీ రికార్డు. ఏదైనా రోజు తప్పుగా ఉంటే ఆయనకు చెప్పండి.'}
 };
 const t=k=>((T[S.settings.lang]||T.en)[k]||T.en[k]||k);
 const isOp=()=>S.settings.role==='operator';
@@ -233,7 +233,15 @@ function dropPaymentFor(jobId){
   const i=S.payments.findIndex(p=>p.jobId===jobId);
   if(i>-1){queue('payment',{...S.payments[i],amount:0,mode:'reversed'});S.payments.splice(i,1)}
 }
-const lastReading=()=>{const j=S.jobs.filter(x=>x.end!=null).sort((a,b)=>b.ts-a.ts)[0];return j?j.end:null};
+/* On an operator phone the job list is wiped after sync, so the last meter figure
+   is kept on its own — the continuity check must survive the purge. */
+const lastReading=()=>{
+  const j=S.jobs.filter(x=>x.end!=null).sort((a,b)=>b.ts-a.ts)[0];
+  const a=j?j.end:null,b=S.settings.lastMeter;
+  if(a==null)return b==null?null:b;
+  if(b==null)return a;
+  return Math.max(a,b);
+};
 function monthJobs(ym){return S.jobs.filter(j=>j.date.startsWith(ym))}
 function calcBill(hrs,rate,transport,minH){
   const h=Math.max(hrs,minH||0);
@@ -388,11 +396,37 @@ async function sync(){
     const j=await r.json();
     if(!j.ok&&j.code){el.textContent=j.code==='PENDING'?'awaiting approval':'not authorised';syncing=false;return}
     if(j.ok){S.queue=S.queue.slice(batch.length);save();el.textContent=S.queue.length?S.queue.length+' to sync':'synced';
-      if(S.queue.length){syncing=false;return sync()}}
+      if(S.queue.length){syncing=false;return sync()}
+      await purgeOperatorData();}
     else el.textContent='sync error';
   }catch(e){el.textContent=S.queue.length+' waiting'}
   syncing=false;
 }
+/* Operator phones are a capture device, not a record. Once a job is safely in the
+   sheet it is deleted from the phone — only the job on screen is kept, so the bill
+   stays viewable. Photos go with it; Drive holds the copy that matters. */
+async function purgeOperatorData(){
+  if(!isOp())return;
+  const pending=new Set(S.queue.map(q=>String(q.row&&(q.row.id||q.row.date))));
+  const keep=S.jobs.slice().sort((a,b)=>b.ts-a.ts)[0];
+  const keepIds=new Set([keep&&keep.id,S.active&&S.active.id].filter(Boolean));
+  const gone=S.jobs.filter(j=>!keepIds.has(j.id)&&!pending.has(String(j.id)));
+  if(!gone.length&&!S.payments.length&&!S.advances.length)return;
+  const keepPhotos=new Set([keep&&keep.startPhoto,keep&&keep.endPhoto,
+    S.active&&S.active.startPhoto].filter(Boolean));
+  for(const j of gone){
+    for(const pid of [j.startPhoto,j.endPhoto]){
+      if(pid&&!keepPhotos.has(pid)&&!pending.has(String(pid))){
+        try{await new Promise(r=>{idb.transaction('p','readwrite').objectStore('p').delete(pid).onsuccess=r})}catch(e){}
+      }
+    }
+  }
+  S.jobs=S.jobs.filter(j=>keepIds.has(j.id)||pending.has(String(j.id)));
+  S.payments=S.payments.filter(x=>pending.has(String(x.id)));
+  /* attendance and advances stay: they are his own record, shown read-only */
+  save();
+}
+
 window.addEventListener('online',sync);
 
 /* Pull what the other phone recorded. Anything still waiting in our own queue is
@@ -409,6 +443,33 @@ async function pullSheet(quiet){
     if(!j.data)throw 0;
     const D=j.data,pending=new Set(S.queue.map(q=>String(q.row&&(q.row.id||q.row.date))));
     let added=0;
+
+    if(isOp()){
+      /* parties and rates only — no ledger, no history, no other people's jobs */
+      (D.parties||[]).forEach(p=>{
+        if(!p.id)return;
+        const ex=S.parties.find(x=>x.id===p.id);
+        const row={id:p.id,name:p.name,phone:String(p.phone||''),rate:+p.rate||S.settings.rate};
+        if(!ex){S.parties.push(row);added++}else Object.assign(ex,row);
+      });
+      (D.attendance||[]).forEach(r=>{
+        const v=String(r.status||'');
+        if(r.date&&v&&v!=='-')S.attendance[r.date]=v;else if(r.date)delete S.attendance[r.date];
+      });
+      S.advances=(D.advances||[]).map(r=>({id:String(r.id),date:String(r.date),who:r.who,amount:+r.amount,note:r.note||''}));
+      let hi=S.settings.lastMeter==null?-1:S.settings.lastMeter;
+      (D.jobs||[]).forEach(r=>{if(String(r.paid)!=='DELETED'&&+r.end>hi)hi=+r.end});
+      if(hi>=0)S.settings.lastMeter=hi;
+      const keep=['machine','rate','minHours','transport','dieselRate','tenths','upi','upiName','owner'];
+      (D.settings||[]).forEach(r=>{
+        if(!keep.includes(r.key))return;
+        S.settings[r.key]=r.key==='tenths'?(String(r.value)==='true'||r.value===true)
+          :(typeof S.settings[r.key]==='number'?(+r.value||0):String(r.value));
+      });
+      save();render();
+      if(!quiet)toast('Updated');
+      return;
+    }
 
     (D.parties||[]).forEach(p=>{
       if(!p.id||pending.has(String(p.id)))return;
@@ -508,7 +569,7 @@ const app=document.getElementById('app');
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   tab=b.dataset.tab;document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));render()});
 function applyRole(){
-  const op=isOp(),allow=['work','set'];
+  const op=isOp(),allow=['work','att','set'];
   let n=0;
   document.querySelectorAll('nav button').forEach(b=>{
     const show=!op||allow.includes(b.dataset.tab);
@@ -621,6 +682,7 @@ async function endJob(){
       transport:+document.getElementById('eTr').value||0,amount:amt,paid:mode!=='credit',mode:mode==='credit'?'':mode,
       diesel:dz,startPhoto:a.startPhoto,endPhoto:r.photoId,loc:a.loc};
     S.jobs.push(j);
+    S.settings.lastMeter=r.reading;
     if(j.paid)addPayment({id:uid(),partyId:j.partyId,party:party(j.partyId).name,amount:amt,date:j.date,mode:j.mode,jobId:j.id});
     if(dz)S.diesel.push({id:uid(),date:j.date,litres:dz,amount:Math.round(dz*S.settings.dieselRate),jobId:j.id});
     if(S.attendance[j.date]===undefined)S.attendance[j.date]='P';
@@ -830,7 +892,32 @@ function openParty(id){
 
 /* --- ATTENDANCE + SALARY --- */
 let attYM=today().slice(0,7);
+function vAttOperator(){
+  const s=S.settings,[y,m]=attYM.split('-').map(Number),days=new Date(y,m,0).getDate();
+  const cnt={P:0,A:0};
+  for(let d=1;d<=days;d++){const k=`${attYM}-${String(d).padStart(2,'0')}`;const v=S.attendance[k];if(cnt[v]!==undefined)cnt[v]++}
+  let g='';
+  const first=new Date(y,m-1,1).getDay();
+  for(let i=0;i<first;i++)g+='<div></div>';
+  for(let d=1;d<=days;d++){const k=`${attYM}-${String(d).padStart(2,'0')}`;
+    g+=`<div class="dayb ${S.attendance[k]||''} ${k>today()?'off':''}">${d}</div>`}
+  const adv=S.advances.filter(a=>a.date.startsWith(attYM));
+  app.innerHTML=`<div class="card"><div class="between"><h2>${t('duty')}</h2>
+      <input type="month" id="ym" value="${attYM}" style="width:auto;padding:7px"></div>
+    <p class="muted">${esc(s.opName)}</p>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:10px">
+      ${['S','M','T','W','T','F','S'].map(x=>`<div class="muted" style="text-align:center;font-size:11px">${x}</div>`).join('')}${g}</div>
+    <div class="grid2" style="margin-top:12px">
+      <div class="stat"><div class="k">${t('present')}</div><div class="v num">${cnt.P}</div></div>
+      <div class="stat"><div class="k">${t('absent')}</div><div class="v num">${cnt.A}</div></div></div>
+    <p class="muted" style="margin-top:10px">${t('readOnlyDuty')}</p></div>
+    ${adv.length?`<div class="card"><h2>${t('advance')}</h2>
+      ${adv.map(a=>`<div class="item between"><div>${fmtD(a.date)}<div class="muted">${esc(a.note||'')}</div></div><b class="num">${money(a.amount)}</b></div>`).join('')}</div>`:''}`;
+  document.getElementById('ym').onchange=e=>{attYM=e.target.value;render()};
+}
+
 function vAtt(){
+  if(isOp())return vAttOperator();
   const [y,m]=attYM.split('-').map(Number),days=new Date(y,m,0).getDate();
   const cnt={P:0,A:0,H:0};
   for(let d=1;d<=days;d++){const k=`${attYM}-${String(d).padStart(2,'0')}`;const v=S.attendance[k];if(v&&cnt[v]!==undefined)cnt[v]++}

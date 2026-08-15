@@ -109,11 +109,11 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-16-a';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-16-b';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
-            serviceEvery:250,lastService:0,tenths:true,role:'owner',script:''},
+            serviceEvery:250,lastService:0,tenths:true,role:'owner',script:'',token:'',joined:''},
   parties:[],jobs:[],payments:[],attendance:{},advances:[],diesel:[],active:null,queue:[]
 };
 let S=JSON.parse(localStorage.getItem(K)||'null')||structuredClone(DEF);
@@ -224,6 +224,64 @@ function openSheet(html){shB.innerHTML=html;sh.classList.remove('hide')}
 function closeSheet(){sh.classList.add('hide');shB.innerHTML=''}
 sh.onclick=e=>{if(e.target===sh)closeSheet()};
 
+/* ---------------- device identity & pairing ---------------- */
+/* A permanent random id for this phone. The owner approves it once by name. */
+function deviceId(){
+  let d=localStorage.getItem('jcb_device');
+  if(!d){d='dev_'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4);
+    localStorage.setItem('jcb_device',d)}
+  return d;
+}
+const b64u={
+  enc:o=>btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
+  dec:t=>JSON.parse(decodeURIComponent(escape(atob(t.replace(/-/g,'+').replace(/_/g,'/')))))
+};
+async function post(body){
+  const r=await fetch(S.settings.script,{method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({...body,token:S.settings.token,device:deviceId()})});
+  return r.json();
+}
+async function joinNow(name){
+  try{
+    const j=await post({action:'join',name:name||('Phone '+deviceId().slice(-4))});
+    if(j.ok){S.settings.joined=j.status;S.settings.role=j.role||S.settings.role;save()}
+    return j;
+  }catch(e){return {ok:false,error:'no network'}}
+}
+/* An invite carries the sheet address and the password, so the second phone
+   never has to be told anything. It still has to be approved by the owner. */
+function inviteLink(){
+  return location.origin+location.pathname+'#join='+b64u.enc({u:S.settings.script,t:S.settings.token,m:S.settings.machine});
+}
+async function handleInvite(){
+  const m=location.hash.match(/join=([A-Za-z0-9\-_]+)/);
+  if(!m)return false;
+  let cfg;try{cfg=b64u.dec(m[1])}catch(e){return false}
+  history.replaceState(null,'',location.pathname);
+  if(S.settings.joined==='approved')return false;
+  S.settings.script=cfg.u;S.settings.token=cfg.t;
+  if(cfg.m)S.settings.machine=cfg.m;
+  save();
+  return new Promise(res=>{
+    openSheet(`<h2 class="disp">Join ${esc(cfg.m||'this machine')}</h2>
+      <p class="muted">Your name is shown to the owner so he knows which phone to approve.</p>
+      <label>Your name</label><input id="jN" placeholder="e.g. Ramesh">
+      <button class="btn" id="jGo" style="margin-top:12px">Request access</button>`);
+    document.getElementById('jGo').onclick=async()=>{
+      const n=document.getElementById('jN').value.trim();
+      if(!n)return toast('Enter your name');
+      S.settings.opName=n;save();
+      const j=await joinNow(n);
+      if(!j.ok){toast(j.error||'Could not reach the machine');return}
+      openSheet(`<h2 class="disp">${j.status==='approved'?'You are in':'Waiting for approval'}</h2>
+        <p>${j.status==='approved'?'This phone is connected. You can start recording jobs.':'The owner has to approve this phone. Ask him to open Setup and tap Approve, then reopen this app.'}</p>
+        <button class="btn" id="jX" style="margin-top:12px">OK</button>`);
+      document.getElementById('jX').onclick=()=>{closeSheet();render();res(true)};
+    };
+  });
+}
+
 /* ---------------- sync ---------------- */
 function queue(type,row){S.queue.push({type,row,at:Date.now()});save();sync()}
 let syncing=false;
@@ -235,8 +293,9 @@ async function sync(){
   try{
     const batch=S.queue.slice(0,20);
     const r=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'sync',rows:batch})});
+      body:JSON.stringify({action:'sync',rows:batch,token:S.settings.token,device:deviceId()})});
     const j=await r.json();
+    if(!j.ok&&j.code){el.textContent=j.code==='PENDING'?'awaiting approval':'not authorised';syncing=false;return}
     if(j.ok){S.queue=S.queue.slice(batch.length);save();el.textContent=S.queue.length?S.queue.length+' to sync':'synced';
       if(S.queue.length){syncing=false;return sync()}}
     else el.textContent='sync error';
@@ -252,9 +311,11 @@ async function pullSheet(quiet){
   if(!url){if(!quiet)toast('Add the sheet URL in Setup first');return}
   const el=document.getElementById('hSync');if(el)el.textContent='loading…';
   try{
-    const r=await fetch(url+'?action=pull');
+    const r=await fetch(url+'?action=pull&token='+encodeURIComponent(S.settings.token)+'&device='+encodeURIComponent(deviceId()));
     const j=await r.json();
-    if(!j.ok||!j.data)throw 0;
+    if(!j.ok){if(el)el.textContent=j.code==='PENDING'?'awaiting approval':'not authorised';
+      if(!quiet)toast(j.error||'Not authorised');return}
+    if(!j.data)throw 0;
     const D=j.data,pending=new Set(S.queue.map(q=>String(q.row&&(q.row.id||q.row.date))));
     let added=0;
 
@@ -298,6 +359,14 @@ async function pullSheet(quiet){
       if(v&&v!=='-'&&!S.attendance[r.date]){S.attendance[r.date]=v;added++}
     });
 
+    if(S.settings.role==='operator'&&D.settings){
+      const keep=['machine','rate','minHours','transport','dieselRate','tenths','upi','upiName','owner'];
+      D.settings.forEach(r=>{
+        if(!keep.includes(r.key))return;
+        S.settings[r.key]=r.key==='tenths'?(String(r.value)==='true'||r.value===true)
+          :(typeof S.settings[r.key]==='number'?(+r.value||0):String(r.value));
+      });
+    }
     (D.advances||[]).forEach(r=>{
       if(!r.id||S.advances.find(x=>x.id===r.id))return;
       S.advances.push({id:String(r.id),date:String(r.date),who:r.who,amount:+r.amount,note:r.note||''});added++;
@@ -755,12 +824,17 @@ function vSet(){
   <div class="card"><h2>Service</h2>
     <div class="grid2"><div>${F('serviceEvery','Service every (hours)','number')}</div><div>${F('lastService','Meter at last service','number','step="0.1"')}</div></div></div>
   <div class="card"><h2>This device</h2>
-    <p class="muted">The operator's phone records jobs. The owner's phone loads them from the sheet to bill and track balances.</p>
-    <label>Role</label><select id="s_role"><option value="owner">Owner — loads jobs from the sheet</option><option value="operator">Operator — records jobs on site</option></select>
-    <button class="btn dark" id="sPull" style="margin-top:10px">Load latest from sheet</button></div>
+    <p class="muted">Status: <b>${s.joined==='approved'?'connected as '+esc(s.role):s.joined==='pending'?'waiting for owner approval':'not paired yet'}</b></p>
+    <label>Role</label><select id="s_role"><option value="owner">Owner — bills, ledger, salary</option><option value="operator">Operator — records jobs on site</option></select>
+    <div class="grid2" style="margin-top:10px"><button class="btn dark" id="sPull">Load from sheet</button><button class="btn ghost" id="sJoin">Pair this phone</button></div></div>
+  <div class="card" id="teamCard"><div class="between"><h2>Team</h2><button class="btn sm" id="tInvite">Invite a phone</button></div>
+    <p class="muted">Phones that have asked to join. Nothing syncs until you approve it.</p>
+    <div id="teamList"><p class="muted">Tap refresh to load.</p></div>
+    <button class="btn ghost sm" id="tRef" style="width:100%;margin-top:8px">Refresh list</button></div>
   <div class="card"><h2>Google Sheet backup</h2>
     <p class="muted">Paste the Apps Script web app URL from SETUP. Everything works without it — this only copies data to your Sheet and photos to Drive.</p>
     ${F('script','Web app URL','url')}
+    ${F('token','Password (same as ACCESS_TOKEN in the script)','text')}
     <div class="grid2" style="margin-top:10px"><button class="btn ghost" id="sTest">Test link</button><button class="btn ghost" id="sPush">Sync now (${S.queue.length})</button></div></div>
   <div class="card"><h2>Data</h2>
     <p class="muted">App version <b>${BUILD}</b></p>
@@ -770,6 +844,25 @@ function vSet(){
   document.getElementById('s_tenths').value=s.tenths?'1':'0';
   document.getElementById('s_role').value=s.role||'owner';
   document.getElementById('sPull').onclick=()=>pullSheet(false);
+  document.getElementById('sJoin').onclick=async()=>{
+    if(!s.script||!s.token)return toast('Add the sheet URL and password first');
+    const j=await joinNow(s.owner||s.opName||'Owner phone');
+    toast(j.ok?(j.status==='approved'?'This phone is connected':'Sent — approve it from the owner phone'):(j.error||'Failed'));
+    render()};
+  document.getElementById('tInvite').onclick=()=>{
+    if(!s.script||!s.token)return toast('Add the sheet URL and password first');
+    const link=inviteLink();
+    openSheet(`<h2 class="disp">Invite a phone</h2>
+      <p class="muted">Send this to your operator. Opening it sets up his app completely — he only types his name. You then approve him below.</p>
+      <textarea rows="4" id="ivT" style="font-size:12px">${esc(link)}</textarea>
+      <button class="btn" id="ivWa" style="margin-top:10px">Send on WhatsApp</button>
+      <button class="btn ghost" id="ivC" style="margin-top:8px">Copy link</button>
+      <button class="btn ghost" id="x" style="margin-top:8px">Close</button>`);
+    document.getElementById('ivWa').onclick=()=>waSend('Install our machine app from this link, then tell me when done:\n\n'+link,'');
+    document.getElementById('ivC').onclick=()=>{navigator.clipboard.writeText(link);toast('Copied')};
+    document.getElementById('x').onclick=closeSheet};
+  document.getElementById('tRef').onclick=loadTeam;
+  if(s.role==='owner'&&s.script&&s.token)loadTeam();
   document.getElementById('sSave').onclick=()=>{
     Object.keys(s).forEach(k=>{const el=document.getElementById('s_'+k);if(!el)return;
       if(k==='tenths'){s.tenths=el.value==='1';return}
@@ -800,6 +893,26 @@ function vSet(){
     i.onchange=()=>{const f=new FileReader();f.onload=()=>{try{S=JSON.parse(f.result);save();toast('Restored');render()}catch(e){toast('Bad file')}};f.readAsText(i.files[0])};i.click()};
 }
 
+async function loadTeam(){
+  const box=document.getElementById('teamList');if(!box)return;
+  box.innerHTML='<p class="muted">Loading…</p>';
+  try{
+    const r=await fetch(S.settings.script+'?action=devices&token='+encodeURIComponent(S.settings.token)+'&device='+encodeURIComponent(deviceId()));
+    const j=await r.json();
+    if(!j.ok){box.innerHTML='<p class="muted">'+esc(j.error||'Could not load')+'</p>';return}
+    box.innerHTML=(j.devices||[]).map(d=>{
+      const me=String(d.deviceId)===deviceId();
+      return `<div class="item between"><div><b>${esc(d.name)}</b>${me?' <span class="pill warn">this phone</span>':''}
+        <div class="muted">${esc(d.role)} · ${esc(d.status)}</div></div>
+        <div>${me?'':`<button class="btn ${d.status==='approved'?'ghost':''} sm tSet" data-id="${esc(d.deviceId)}" data-s="${d.status==='approved'?'blocked':'approved'}">${d.status==='approved'?'Block':'Approve'}</button>`}</div></div>`;
+    }).join('')||'<p class="muted">No other phones yet.</p>';
+    document.querySelectorAll('.tSet').forEach(b=>b.onclick=async()=>{
+      b.textContent='…';
+      const res=await post({action:'setDevice',target:b.dataset.id,status:b.dataset.s});
+      toast(res.ok?'Updated':(res.error||'Failed'));loadTeam()});
+  }catch(e){box.innerHTML='<p class="muted">Could not reach the sheet.</p>'}
+}
+
 function exportCsv(){
   const rows=[['Date','Party','Site','Start','End','Hours','Billed hrs','Rate','Transport','Amount','Status','Mode','Diesel L']];
   S.jobs.slice().sort((a,b)=>a.ts-b.ts).forEach(j=>rows.push([j.date,party(j.partyId).name,j.site||'',j.start,j.end,j.hours,j.billHours,j.rate,j.transport,j.amount,j.paid?'Paid':'Credit',j.mode||'',j.diesel||'']));
@@ -809,8 +922,9 @@ function exportCsv(){
 }
 
 /* boot */
-openDB().then(()=>{
+openDB().then(async()=>{
   document.getElementById('hTitle').textContent=S.settings.machine||'Machine Log';
+  await handleInvite();
   render();
   if(S.settings.role==='owner'&&S.settings.script&&navigator.onLine)setTimeout(()=>pullSheet(true),800);
 });

@@ -109,6 +109,7 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
+const BUILD='2026-08-15-d';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
@@ -684,6 +685,7 @@ function vSet(){
     ${F('script','Web app URL','url')}
     <div class="grid2" style="margin-top:10px"><button class="btn ghost" id="sTest">Test link</button><button class="btn ghost" id="sPush">Sync now (${S.queue.length})</button></div></div>
   <div class="card"><h2>Data</h2>
+    <p class="muted">App version <b>${BUILD}</b></p>
     <div class="grid2"><button class="btn ghost" id="dExp">Backup file</button><button class="btn ghost" id="dImp">Restore file</button></div>
     <button class="btn" id="sSave" style="margin-top:12px">Save settings</button></div>`;
   document.getElementById('s_tenths').value=s.tenths?'1':'0';

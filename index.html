@@ -109,7 +109,7 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-15-d';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-15-e';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
@@ -506,7 +506,14 @@ function tidyPhone(t){
   if(d.length>10)d=d.slice(-10);
   return d;
 }
-const canPickContact=()=>'contacts' in navigator&&'ContactsManager' in window;
+function contactSupport(){
+  if(!('contacts' in navigator))return 'no navigator.contacts';
+  if(!('ContactsManager' in window))return 'no ContactsManager';
+  if(!navigator.contacts.select)return 'no select()';
+  if(!window.isSecureContext)return 'not a secure page';
+  return '';
+}
+const canPickContact=()=>contactSupport()==='';
 async function pickContact(){
   try{
     const list=await navigator.contacts.select(['name','tel'],{multiple:false});
@@ -518,13 +525,15 @@ async function pickContact(){
 function editParty(id){
   const p=id?party(id):{name:'',phone:'',rate:S.settings.rate};
   openSheet(`<h2 class="disp">${id?'Edit':'New'} party</h2>
-    ${canPickContact()?`<button class="btn dark" id="pPick" style="margin-bottom:4px">Choose from contacts</button>`:''}
+    <button class="btn dark" id="pPick" style="margin-bottom:4px">Choose from contacts</button>
     <label>Name</label><input id="pN" value="${esc(p.name)}">
     <label>WhatsApp number</label><input id="pP" type="tel" inputmode="numeric" value="${esc(p.phone||'')}" placeholder="10 digits">
     <label>Rate per hour</label><input id="pR" type="number" value="${p.rate||S.settings.rate}">
     <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="x">Cancel</button><button class="btn" id="go">Save</button></div>`);
   const pk=document.getElementById('pPick');
   if(pk)pk.onclick=async()=>{
+    const why=contactSupport();
+    if(why){toast('Contact picker unavailable — '+why);return}
     const c=await pickContact();
     if(!c)return toast('No contact chosen');
     /* never wipe something already typed with a blank field from the phonebook */
@@ -686,6 +695,7 @@ function vSet(){
     <div class="grid2" style="margin-top:10px"><button class="btn ghost" id="sTest">Test link</button><button class="btn ghost" id="sPush">Sync now (${S.queue.length})</button></div></div>
   <div class="card"><h2>Data</h2>
     <p class="muted">App version <b>${BUILD}</b></p>
+    <button class="btn ghost sm" id="dDiag" style="width:100%;margin-bottom:8px">Device check</button>
     <div class="grid2"><button class="btn ghost" id="dExp">Backup file</button><button class="btn ghost" id="dImp">Restore file</button></div>
     <button class="btn" id="sSave" style="margin-top:12px">Save settings</button></div>`;
   document.getElementById('s_tenths').value=s.tenths?'1':'0';
@@ -698,6 +708,19 @@ function vSet(){
     const u=document.getElementById('s_script').value.trim();if(!u)return toast('Paste the URL first');
     try{const r=await fetch(u);const j=await r.json();toast(j.ok?'Connected to '+j.sheet:'Reached, but error')}catch(e){toast('Could not reach the script')}};
   document.getElementById('sPush').onclick=sync;
+  document.getElementById('dDiag').onclick=()=>{
+    const why=contactSupport();
+    openSheet(`<h2 class="disp">Device check</h2>
+      <table>
+        <tr><td>Contact picker</td><td style="text-align:right">${why?'<b style="color:var(--due)">'+esc(why)+'</b>':'<b style="color:var(--ok)">available</b>'}</td></tr>
+        <tr><td>Camera capture</td><td style="text-align:right">${'capture' in document.createElement('input')?'yes':'no'}</td></tr>
+        <tr><td>Location</td><td style="text-align:right">${navigator.geolocation?'yes':'no'}</td></tr>
+        <tr><td>Secure page</td><td style="text-align:right">${window.isSecureContext?'yes':'no'}</td></tr>
+        <tr><td>Installed app mode</td><td style="text-align:right">${matchMedia('(display-mode: standalone)').matches?'yes':'browser tab'}</td></tr>
+      </table>
+      <label>Browser</label><textarea rows="4" readonly style="font-size:12px">${esc(navigator.userAgent)}</textarea>
+      <button class="btn ghost" id="x" style="margin-top:10px">Close</button>`);
+    document.getElementById('x').onclick=closeSheet};
   document.getElementById('dExp').onclick=()=>{
     const b=new Blob([JSON.stringify(S)],{type:'application/json'});const a=document.createElement('a');
     a.href=URL.createObjectURL(b);a.download=`machinelog-backup-${today()}.json`;a.click()};

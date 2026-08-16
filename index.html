@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#10151a">
-<title>Aizal Earth Movers</title>
+<title>Machine Log</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -147,16 +147,25 @@ th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.1e
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-16-j';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-16-m';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
-            serviceEvery:250,lastService:0,tenths:true,role:'owner',lang:'en',lastMeter:null,script:'',token:'',joined:''},
+            serviceEvery:250,lastService:0,tenths:true,meterDigits:6,role:'owner',lang:'en',lastMeter:null,script:'',token:'',joined:''},
   parties:[],jobs:[],payments:[],attendance:{},advances:[],diesel:[],active:null,queue:[]
 };
 let S=JSON.parse(localStorage.getItem(K)||'null')||structuredClone(DEF);
 S.settings={...DEF.settings,...S.settings};
-const save=()=>localStorage.setItem(K,JSON.stringify(S));
+function save(){
+  try{localStorage.setItem(K,JSON.stringify(S))}
+  catch(e){
+    /* Out of room. Nothing else on this phone is safe to write until it clears,
+       so say so loudly rather than pretending the save worked. */
+    S.lastErr='Phone storage full — '+String(e&&e.name||e);
+    try{toast('Storage full. Open Setup to clear it.')}catch(_){}
+    console.error('save failed',e);
+  }
+}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const money=n=>'₹'+(Math.round(n||0)).toLocaleString('en-IN');
 const today=()=>new Date().toISOString().slice(0,10);
@@ -292,15 +301,21 @@ const cam=document.getElementById('cam');
 function shoot(){return new Promise(res=>{cam.value='';cam.onchange=()=>{const f=cam.files[0];if(!f)return res(null);
   const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(f)};cam.click()})}
 
-function shrink(dataUrl,max=1400,q=.78){return new Promise(r=>{const i=new Image();i.onload=()=>{
+function shrink(dataUrl,max=1100,q=.7){return new Promise(r=>{const i=new Image();i.onload=()=>{
   const sc=Math.min(1,max/Math.max(i.width,i.height));const c=document.createElement('canvas');
   c.width=i.width*sc;c.height=i.height*sc;c.getContext('2d').drawImage(i,0,0,c.width,c.height);
   r(c.toDataURL('image/jpeg',q))};i.src=dataUrl})}
 
 /* The meter reads e.g. 258745 on the glass, which is 25874.5 hours.
    The operator types exactly what he sees; the app puts the decimal in. */
+const meterLen=()=>+S.settings.meterDigits||6;
 const toHours=raw=>S.settings.tenths?(+raw)/10:(+raw);
-const showRaw=raw=>S.settings.tenths&&raw.length>1?raw.slice(0,-1)+'.'+raw.slice(-1):raw;
+/* The meter reads a fixed number of digits — 25874.5 — so the readout shows the
+   slots waiting to be filled rather than a number that grows from nothing. */
+function showRaw(raw){
+  const n=meterLen(),d=(raw||'').padEnd(n,'·').slice(0,n);
+  return S.settings.tenths?d.slice(0,n-1)+'.'+d.slice(n-1):d;
+}
 /* A meter only runs forward, and never more than a long day between two photos. */
 function plausible(v,last){
   if(v==null||isNaN(v)||v<=0)return false;
@@ -327,9 +342,11 @@ async function captureReading(label,last){
       <button class="btn ghost" id="kBack" style="margin-top:10px">${t('retakePhoto')}</button>`);
     const val=document.getElementById('kVal'),hint=document.getElementById('kHint');
     const paint=()=>{
-      val.textContent=raw?showRaw(raw):'– – – –';
+      val.textContent=showRaw(raw);
       const v=toHours(raw);
+      const full=raw.length===meterLen();
       if(!raw){hint.innerHTML='&nbsp;';return}
+      if(!full){hint.style.color='#8b97a3';hint.textContent=(meterLen()-raw.length)+' more digit'+(meterLen()-raw.length>1?'s':'');return}
       if(last==null){hint.textContent=S.settings.tenths?'= '+v.toFixed(1)+' hours':'';return}
       const d=+(v-last).toFixed(1);
       hint.style.color=plausible(v,last)?'#9aa5ae':'#ff8a80';
@@ -340,10 +357,10 @@ async function captureReading(label,last){
       if(k==='⌫')raw=raw.slice(0,-1);
       else if(k==='OK'){
         const v=toHours(raw);
-        if(!raw)return toast(t('enterReading'));
+        if(raw.length!==meterLen())return toast('Enter all '+meterLen()+' digits from the meter');
         if(!plausible(v,last))return toast(v<=(last||0)?'Must be higher than '+last.toFixed(1):'That is more than 24 hours — check it');
         closeSheet();return res({reading:v,photoId:pid});
-      } else if(raw.length<7)raw+=k;
+      } else if(raw.length<meterLen())raw+=k;
       paint()});
     document.getElementById('kBack').onclick=async()=>{closeSheet();res(await captureReading(label,last))};
     paint();
@@ -444,9 +461,23 @@ async function sync(){
   if(syncing||!navigator.onLine||!S.queue.length){el.textContent=S.queue.length?S.queue.length+' to sync':'synced';return}
   syncing=true;el.textContent='syncing…';
   try{
-    const batch=S.queue.slice(0,20);
+    /* photos are large, so at most two ride along in any one request */
+    const batch=[];let photos=0;
+    for(const q of S.queue){
+      if(q.type==='photo'){if(photos>=2)break;photos++}
+      batch.push(q);
+      if(batch.length>=20)break;
+    }
+    const payload=[];
+    for(const q of batch){
+      if(q.type==='photo'){
+        const d=await getPhoto(q.row.id);
+        if(!d)continue;                      /* image already gone — skip, do not block the queue */
+        payload.push({type:'photo',row:{...q.row,data:d}});
+      }else payload.push(q);
+    }
     const r=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'sync',rows:batch,token:S.settings.token,device:deviceId()})});
+      body:JSON.stringify({action:'sync',rows:payload,token:S.settings.token,device:deviceId()})});
     const j=await r.json();
     if(!j.ok&&j.code){S.lastErr=j.error||j.code;save();
       el.textContent=j.code==='PENDING'?'awaiting approval':'not authorised';syncing=false;return}
@@ -560,6 +591,21 @@ async function pullSheet(quiet){
       }
     });
 
+    /* iOS can clear a web app's storage, and each way of opening it keeps its own
+       copy. So treat the sheet as the fallback: anything blank here gets refilled. */
+    if(D.settings&&D.settings.length){
+      const restorable=['machine','owner','rate','minHours','transport','dieselRate','tenths',
+        'upi','upiName','opName','salary','workDays','otRate','serviceEvery','lastService'];
+      D.settings.forEach(r=>{
+        if(!restorable.includes(r.key))return;
+        const cur=S.settings[r.key];
+        const blank=cur===''||cur===null||cur===undefined||(typeof cur==='number'&&!cur);
+        if(!blank)return;
+        S.settings[r.key]=r.key==='tenths'?(String(r.value)==='true'||r.value===true)
+          :(typeof DEF.settings[r.key]==='number'?(+r.value||0):String(r.value));
+      });
+    }
+
     /* A row deleted straight out of the sheet should disappear from the phones.
        Anything still unsent is kept — it has not reached the sheet yet. */
     const sheetJobs=new Set((D.jobs||[]).map(r=>String(r.id)));
@@ -608,8 +654,9 @@ async function pullSheet(quiet){
 }
 async function pushPhoto(pid,meta){
   if(!S.settings.script)return;
-  const d=await getPhoto(pid); if(!d)return;
-  queue('photo',{id:pid,data:d,...meta});
+  /* the image itself stays in IndexedDB — only a pointer goes in the queue,
+     which lives in localStorage and would otherwise fill up and break saving */
+  queue('photo',{id:pid,...meta});
 }
 
 /* ---------------- WhatsApp + UPI ---------------- */
@@ -1171,6 +1218,7 @@ function vSet(){
     ${F('otRate','Overtime ₹ / hr beyond 8 hr','number')}</div>
   <div class="card"><h2>Meter format</h2>
     <p class="muted">Your meter shows 6 digits like <b>258745</b>. If the last digit is tenths of an hour, that is 25874.5 hours — leave this on. Getting it wrong changes every bill by 10x.</p>
+    <label>Digits on the meter</label><input id="s_meterDigits" type="number" value="${s.meterDigits}">
     <label>Last digit</label>
     <select id="s_tenths"><option value="1"${s.settings&&s.settings.tenths?'':''}>Tenths of an hour (258745 = 25874.5)</option><option value="0">Whole hours (258745 = 258745)</option></select></div>
   <div class="card"><h2>Service</h2>
@@ -1190,9 +1238,13 @@ function vSet(){
     <div class="grid2" style="margin-top:10px"><button class="btn ghost" id="sTest">Test link</button><button class="btn ghost" id="sPush">Sync now (${S.queue.length})</button></div></div>
   <div class="card"><h2>Data</h2>
     <p class="muted">App version <b>${BUILD}</b></p>
+    <button class="btn ghost sm" id="dSelf" style="width:100%;margin-bottom:var(--s2)">Save my setup link</button>
     <button class="btn ghost sm" id="dDiag" style="width:100%;margin-bottom:8px">Device check</button>
     <div class="grid2"><button class="btn ghost" id="dExp">Backup file</button><button class="btn ghost" id="dImp">Restore file</button></div>
     <button class="btn ghost" id="dReload" style="width:100%;margin-top:var(--s2)">Rebuild from sheet</button>
+    <button class="btn ghost" id="dSet" style="width:100%;margin-top:var(--s2)">Restore settings from sheet</button>
+    <button class="btn danger" id="dClearQ" style="width:100%;margin-top:var(--s2)">Clear stuck outbox (${S.queue.length})</button>
+    <p class="muted">Only if the phone says storage is full and nothing will sync. Discards items waiting to be sent — jobs already in the sheet are unaffected.</p>
     <p class="muted">Clears the jobs, payments and balances held on this phone and loads them again from the sheet. Use it after editing the sheet by hand. Anything not yet synced is kept.</p>
     <button class="btn" id="sSave" style="margin-top:12px">Save settings</button></div>`;
   document.getElementById('s_tenths').value=s.tenths?'1':'0';
@@ -1228,6 +1280,16 @@ function vSet(){
     const u=document.getElementById('s_script').value.trim();if(!u)return toast('Paste the URL first');
     try{const r=await fetch(u);const j=await r.json();toast(j.ok?'Connected to '+j.sheet:'Reached, but error')}catch(e){toast('Could not reach the script')}};
   document.getElementById('sPush').onclick=sync;
+  document.getElementById('dSelf').onclick=()=>{
+    if(!s.script||!s.token)return toast('Add the sheet address and password first');
+    const link=inviteLink();
+    openSheet(`<h2 class="disp">Your setup link</h2>
+      <p class="muted">Send this to yourself on WhatsApp and keep it. If this phone ever loses its data, opening the link puts the address and password back in one tap.</p>
+      <textarea rows="4">${esc(link)}</textarea>
+      <button class="btn" id="slWa" style="margin-top:var(--s3)">Send to myself</button>
+      <button class="btn ghost" id="x" style="margin-top:var(--s2)">Close</button>`);
+    document.getElementById('slWa').onclick=()=>waSend('Machine Log setup link — keep this:\n\n'+link,'');
+    document.getElementById('x').onclick=closeSheet};
   document.getElementById('dDiag').onclick=()=>{
     const why=contactSupport();
     openSheet(`<h2 class="disp">Device check</h2>
@@ -1241,6 +1303,15 @@ function vSet(){
       <label>Browser</label><textarea rows="4" readonly style="font-size:12px">${esc(navigator.userAgent)}</textarea>
       <button class="btn ghost" id="x" style="margin-top:10px">Close</button>`);
     document.getElementById('x').onclick=closeSheet};
+  document.getElementById('dClearQ').onclick=()=>{
+    if(!confirm('Discard '+S.queue.length+' item(s) waiting to be sent? Anything not yet in the sheet is lost.'))return;
+    S.queue=[];S.lastErr='';save();toast('Outbox cleared');render()};
+  document.getElementById('dSet').onclick=async()=>{
+    if(!S.settings.script)return toast('No sheet address on this phone');
+    const restorable=['machine','owner','rate','minHours','transport','dieselRate','tenths',
+      'upi','upiName','opName','salary','workDays','otRate','serviceEvery','lastService'];
+    restorable.forEach(k=>{S.settings[k]=DEF.settings[k]});
+    save();await pullSheet(true);toast('Settings restored');render()};
   document.getElementById('dReload').onclick=async()=>{
     if(!confirm('Clear the records on this phone and load them again from the sheet?'))return;
     const pending=new Set(S.queue.map(q=>String(q.row&&(q.row.id||q.row.date))));

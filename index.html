@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#10151a">
-<title>Machine Log</title>
+<title>Aizal Earth Movers</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -147,7 +147,7 @@ th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.1e
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-16-g';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-16-h';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
@@ -275,10 +275,9 @@ function dropPaymentFor(jobId){
    is kept on its own — the continuity check must survive the purge. */
 const lastReading=()=>{
   const j=S.jobs.filter(x=>x.end!=null).sort((a,b)=>b.ts-a.ts)[0];
-  const a=j?j.end:null,b=S.settings.lastMeter;
-  if(a==null)return b==null?null:b;
-  if(b==null)return a;
-  return Math.max(a,b);
+  if(j)return j.end;                    /* the latest job wins, even if corrected downward */
+  const b=S.settings.lastMeter;
+  return b==null?null:b;
 };
 function monthJobs(ym){return S.jobs.filter(j=>j.date.startsWith(ym))}
 function calcBill(hrs,rate,transport,minH){
@@ -495,9 +494,12 @@ async function pullSheet(quiet){
         if(r.date&&v&&v!=='-')S.attendance[r.date]=v;else if(r.date)delete S.attendance[r.date];
       });
       S.advances=(D.advances||[]).map(r=>({id:String(r.id),date:String(r.date),who:r.who,amount:+r.amount,note:r.note||''}));
-      let hi=S.settings.lastMeter==null?-1:S.settings.lastMeter;
+      let hi=-1;
       (D.jobs||[]).forEach(r=>{if(String(r.paid)!=='DELETED'&&+r.end>hi)hi=+r.end});
-      if(hi>=0)S.settings.lastMeter=hi;
+      const unsent=S.queue.some(q=>q.type==='job');
+      if(hi>=0)S.settings.lastMeter=unsent?Math.max(hi,S.settings.lastMeter||-1):hi;
+      /* drop any stale job kept on this phone; the sheet has the corrected copy */
+      S.jobs=S.jobs.filter(j=>pending.has(String(j.id)));
       const keep=['machine','rate','minHours','transport','dieselRate','tenths','upi','upiName','owner'];
       (D.settings||[]).forEach(r=>{
         if(!keep.includes(r.key))return;
@@ -531,7 +533,13 @@ async function pullSheet(quiet){
         editedAt:r.editedAt||'',editNote:r.editNote||''};
       const ex=S.jobs.find(x=>x.id===row.id);
       if(!ex){S.jobs.push(row);added++}
-      else if(String(r.editedAt||'')>String(ex.editedAt||''))Object.assign(ex,row);
+      else{
+        /* the sheet is the record: if the figures differ and we have nothing
+           unsent for this job, take the sheet's version — including hand edits */
+        const differs=['start','end','hours','billHours','rate','transport','amount','date','partyId','paid']
+          .some(k=>String(ex[k])!==String(row[k]));
+        if(differs){Object.assign(ex,row);added++}
+      }
     });
 
     (D.payments||[]).forEach(r=>{
@@ -1152,6 +1160,8 @@ function vSet(){
     <p class="muted">App version <b>${BUILD}</b></p>
     <button class="btn ghost sm" id="dDiag" style="width:100%;margin-bottom:8px">Device check</button>
     <div class="grid2"><button class="btn ghost" id="dExp">Backup file</button><button class="btn ghost" id="dImp">Restore file</button></div>
+    <button class="btn ghost" id="dReload" style="width:100%;margin-top:var(--s2)">Rebuild from sheet</button>
+    <p class="muted">Clears the jobs, payments and balances held on this phone and loads them again from the sheet. Use it after editing the sheet by hand. Anything not yet synced is kept.</p>
     <button class="btn" id="sSave" style="margin-top:12px">Save settings</button></div>`;
   document.getElementById('s_tenths').value=s.tenths?'1':'0';
   document.getElementById('s_role').value=s.role||'owner';
@@ -1199,6 +1209,13 @@ function vSet(){
       <label>Browser</label><textarea rows="4" readonly style="font-size:12px">${esc(navigator.userAgent)}</textarea>
       <button class="btn ghost" id="x" style="margin-top:10px">Close</button>`);
     document.getElementById('x').onclick=closeSheet};
+  document.getElementById('dReload').onclick=async()=>{
+    if(!confirm('Clear the records on this phone and load them again from the sheet?'))return;
+    const pending=new Set(S.queue.map(q=>String(q.row&&(q.row.id||q.row.date))));
+    S.jobs=S.jobs.filter(j=>pending.has(String(j.id)));
+    S.payments=S.payments.filter(x=>pending.has(String(x.id)));
+    S.settings.lastMeter=null;save();
+    await pullSheet(false);toast('Rebuilt from sheet')};
   document.getElementById('dExp').onclick=()=>{
     const b=new Blob([JSON.stringify(S)],{type:'application/json'});const a=document.createElement('a');
     a.href=URL.createObjectURL(b);a.download=`machinelog-backup-${today()}.json`;a.click()};

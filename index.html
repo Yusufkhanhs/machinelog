@@ -128,7 +128,7 @@ th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.1e
 </head>
 <body>
 <header>
-  <div class="row"><h1 id="hTitle">Aizal Earth Movers</h1><small id="hSync" style="cursor:pointer">offline</small></div>
+  <div class="row"><h1 id="hTitle">Machine Log</h1><small id="hSync" style="cursor:pointer">offline</small></div>
 </header>
 <div class="hazard"></div>
 <main id="app"></main>
@@ -147,7 +147,7 @@ th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.1e
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-16-i';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-16-j';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
@@ -560,6 +560,17 @@ async function pullSheet(quiet){
       }
     });
 
+    /* A row deleted straight out of the sheet should disappear from the phones.
+       Anything still unsent is kept — it has not reached the sheet yet. */
+    const sheetJobs=new Set((D.jobs||[]).map(r=>String(r.id)));
+    const dropped=S.jobs.filter(j=>!sheetJobs.has(String(j.id))&&!pending.has(String(j.id)));
+    if(dropped.length){
+      S.jobs=S.jobs.filter(j=>sheetJobs.has(String(j.id))||pending.has(String(j.id)));
+      added+=dropped.length;
+    }
+    const sheetPays=new Set((D.payments||[]).map(r=>String(r.id)));
+    S.payments=S.payments.filter(x=>sheetPays.has(String(x.id))||pending.has(String(x.id)));
+
     (D.payments||[]).forEach(r=>{
       if(!r.id||pending.has(String(r.id))||S.payments.find(x=>x.id===r.id))return;
       let pid=r.partyId;
@@ -588,8 +599,11 @@ async function pullSheet(quiet){
       S.advances.push({id:String(r.id),date:String(r.date),who:r.who,amount:+r.amount,note:r.note||''});added++;
     });
 
+    if(S.active&&!sheetJobs.has(String(S.active.id))&&!pending.has(String(S.active.id))){
+      /* the running job still lives only on the phone that started it — leave it alone */
+    }
     save();render();
-    if(!quiet)toast(added?added+' new record(s) loaded':'Already up to date');
+    if(!quiet)toast(added?'Updated — '+added+' change(s)':'Already up to date');
   }catch(e){if(!quiet)toast('Could not load from the sheet')}
 }
 async function pushPhoto(pid,meta){

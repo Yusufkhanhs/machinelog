@@ -3,89 +3,127 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#14181c">
+<meta name="theme-color" content="#10151a">
 <title>Machine Log</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --steel:#14181c; --graphite:#2a3138; --concrete:#e9ecef; --paper:#f7f8f9;
-  --yellow:#ffc400; --yellow-d:#e0a800; --ink:#14181c; --muted:#5d6873;
-  --line:#c9d0d6; --ok:#0a7d4b; --due:#b3261e; --blue:#1a5fb4;
-  --r:4px;
+  /* instrument panel palette — amber is the colour of a backlit meter, and is
+     spent only on the readout and the one primary action per screen */
+  --panel:#10151a; --steel:#232b33; --bezel:#05080b;
+  --concrete:#e6e9ec; --paper:#ffffff; --line:#ccd2d8;
+  --ink:#12171c; --muted:#5b6773;
+  --amber:#ffb000; --amber-d:#e09a00;
+  --due:#c1352b; --ok:#0e7c52; --warn:#8a6100;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+  --r:5px;
+}
+@media (prefers-color-scheme: dark){
+  :root{--concrete:#161b21; --paper:#1c232a; --line:#2f3942; --ink:#eef2f5; --muted:#8f9ba7;}
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 body{
   background:var(--concrete); color:var(--ink);
-  font:400 16px/1.45 Barlow,system-ui,sans-serif;
-  padding-bottom:86px; overscroll-behavior-y:contain;
+  font:400 16px/1.5 'IBM Plex Sans',system-ui,sans-serif;
+  padding-bottom:88px; overscroll-behavior-y:contain;
 }
-h1,h2,h3,.disp{font-family:'Barlow Condensed',Barlow,sans-serif;letter-spacing:.01em;margin:0}
+h1,h2,h3,.disp{font-family:'Barlow Condensed',sans-serif;letter-spacing:.015em;margin:0;font-weight:600}
 .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
-/* hazard rule = the machine vernacular, used only as section divider */
-.hazard{height:6px;background:repeating-linear-gradient(135deg,var(--yellow) 0 10px,var(--steel) 10px 20px)}
-header{background:var(--steel);color:#fff;padding:14px 16px 12px;position:sticky;top:0;z-index:40}
-header .row{display:flex;align-items:baseline;justify-content:space-between}
-header h1{font-size:24px;font-weight:700;text-transform:uppercase}
-header small{color:#9aa5ae;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
-main{padding:14px 12px 8px;max-width:620px;margin:0 auto}
-.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin-bottom:12px}
-.card h2{font-size:19px;text-transform:uppercase;font-weight:700;margin-bottom:8px}
-label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px;font-weight:600}
+.mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* the machine's world (dark) sits above the office's (light); the hazard
+   stripe is the seam between them and appears nowhere else */
+header{background:var(--panel);color:#fff;padding:var(--s4) var(--s4) var(--s3);position:sticky;top:0;z-index:40}
+header .row{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3)}
+header h1{font-size:25px;font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+header small{color:#8b97a3;font-size:11px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+.hazard{height:5px;background:repeating-linear-gradient(135deg,var(--amber) 0 9px,var(--panel) 9px 18px)}
+main{padding:var(--s4) var(--s3) var(--s2);max-width:640px;margin:0 auto}
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:var(--s4);margin-bottom:var(--s3)}
+.card h2{font-size:19px;text-transform:uppercase;letter-spacing:.03em;margin-bottom:var(--s2)}
+.card.flush{padding:0;overflow:hidden;border:0;background:none}
+
+label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:var(--s3) 0 var(--s1);font-weight:600}
 input,select,textarea,button{font-family:inherit;font-size:16px}
-input,select,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:var(--r);background:#fff;color:var(--ink)}
-input:focus,select:focus,textarea:focus{outline:3px solid var(--yellow);outline-offset:0;border-color:var(--steel)}
-button{border:0;border-radius:var(--r);padding:15px 16px;font-weight:700;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-size:18px;text-transform:uppercase;letter-spacing:.03em}
-.btn{background:var(--yellow);color:var(--steel);width:100%;min-height:54px}
-.btn:active{background:var(--yellow-d)}
-.btn.dark{background:var(--steel);color:#fff}
-.btn.ghost{background:transparent;color:var(--steel);border:2px solid var(--steel)}
+input,select,textarea{width:100%;padding:13px var(--s3);border:1px solid var(--line);border-radius:var(--r);background:var(--paper);color:var(--ink)}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:3px solid var(--amber);outline-offset:1px;border-color:var(--steel)}
+
+button{border:0;border-radius:var(--r);padding:15px var(--s4);font-weight:600;cursor:pointer;
+  font-family:'Barlow Condensed',sans-serif;font-size:19px;text-transform:uppercase;letter-spacing:.04em}
+.btn{background:var(--amber);color:var(--panel);width:100%;min-height:54px}
+.btn:active{background:var(--amber-d);transform:translateY(1px)}
+.btn.xl{min-height:92px;font-size:27px}
+.btn.dark{background:var(--panel);color:#fff}
+.btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .btn.danger{background:var(--due);color:#fff}
-.btn.sm{padding:9px 12px;min-height:0;font-size:15px;width:auto}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-/* SIGNATURE: hour-meter drum readout */
-.meter{background:var(--steel);border-radius:var(--r);padding:12px 10px;text-align:center;border:2px solid #000}
-.meter .lbl{color:#8f9aa4;font-size:11px;letter-spacing:.14em;text-transform:uppercase}
-.meter .val{font-family:'Barlow Condensed';font-weight:700;font-size:34px;color:var(--yellow);line-height:1.05;
-  text-shadow:0 0 12px rgba(255,196,0,.25)}
-.meter .val.small{font-size:26px}
-.meter.plain .val{color:#fff}
-.stat{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:10px}
-.stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
-.stat .v{font-family:'Barlow Condensed';font-size:26px;font-weight:700;line-height:1.1}
-nav{position:fixed;bottom:0;left:0;right:0;background:var(--steel);display:grid;grid-template-columns:repeat(5,1fr);z-index:50;padding-bottom:env(safe-area-inset-bottom)}
-nav button{background:none;color:#8f9aa4;padding:11px 2px 13px;font-size:12px;border-radius:0;letter-spacing:.04em}
-nav button .ic{display:block;font-size:19px;line-height:1.2}
-nav button.on{color:var(--yellow);box-shadow:inset 0 3px 0 var(--yellow)}
-.row{display:flex;gap:10px;align-items:center}
-.between{display:flex;justify-content:space-between;align-items:center;gap:10px}
-.pill{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:100px;white-space:nowrap}
-.pill.paid{background:#d7f0e3;color:var(--ok)} .pill.credit{background:#fadcda;color:var(--due)}
-.pill.warn{background:#fff3cd;color:#7a5a00}
-.item{border-top:1px solid var(--line);padding:11px 0}
+.btn.sm{padding:9px var(--s3);min-height:0;font-size:15px;width:auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2)}
+
+/* SIGNATURE — the readout, recessed into the panel like the real instrument.
+   Used for the meter, and for money, because this business measures both in hours. */
+.meter{background:var(--panel);border-radius:var(--r);padding:var(--s3) var(--s2);text-align:center;
+  border:1px solid var(--bezel);box-shadow:inset 0 2px 6px rgba(0,0,0,.75),0 1px 0 rgba(255,255,255,.06)}
+.meter .lbl{color:#8b97a3;font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:600}
+.meter .val{font-family:'Barlow Condensed';font-weight:600;font-size:40px;color:var(--amber);line-height:1.05;
+  font-variant-numeric:tabular-nums;text-shadow:0 0 16px rgba(255,176,0,.3)}
+.meter .val.small{font-size:27px}
+.meter.plain .val{color:#e8edf2;text-shadow:none}
+.meter.hero{padding:var(--s5) var(--s3)}
+.meter.hero .val{font-size:52px}
+
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:var(--s3)}
+.stat .k{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:600}
+.stat .v{font-family:'Barlow Condensed';font-size:27px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums}
+
+nav{position:fixed;bottom:0;left:0;right:0;background:var(--panel);display:grid;z-index:50;padding-bottom:env(safe-area-inset-bottom)}
+nav button{background:none;color:#8b97a3;padding:11px 2px 13px;font-size:11px;border-radius:0;letter-spacing:.05em;font-family:'IBM Plex Sans',sans-serif;font-weight:500;text-transform:none}
+nav button .ic{display:block;font-size:18px;line-height:1.3}
+nav button.on{color:var(--amber);box-shadow:inset 0 3px 0 var(--amber)}
+
+.row{display:flex;gap:var(--s2);align-items:center}
+.between{display:flex;justify-content:space-between;align-items:center;gap:var(--s3)}
+.pill{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:100px;white-space:nowrap}
+.pill.paid{background:rgba(14,124,82,.14);color:var(--ok)}
+.pill.credit{background:rgba(193,53,43,.13);color:var(--due)}
+.pill.warn{background:rgba(255,176,0,.2);color:var(--warn)}
+.item{border-top:1px solid var(--line);padding:var(--s3) 0}
 .item:first-of-type{border-top:0}
 .muted{color:var(--muted);font-size:13px}
 .hide{display:none!important}
-.sheet{position:fixed;inset:0;background:rgba(20,24,28,.72);z-index:100;display:flex;align-items:flex-end}
-.sheet>div{background:var(--paper);width:100%;max-height:94vh;overflow:auto;padding:16px;border-radius:12px 12px 0 0;max-width:620px;margin:0 auto}
-#cropWrap{position:relative;touch-action:none;background:#000;border-radius:var(--r);overflow:hidden}
-#cropImg{display:block;width:100%}
-#cropBox{position:absolute;border:2px solid var(--yellow);box-shadow:0 0 0 9999px rgba(0,0,0,.55);cursor:move}
-.handle{position:absolute;width:34px;height:34px;background:var(--yellow);border-radius:50%;right:-17px;bottom:-17px;border:2px solid #000}
-.alertbar{background:#fff3cd;border:1px solid #e0c26a;border-left:5px solid var(--yellow-d);padding:10px 12px;border-radius:var(--r);margin-bottom:10px;font-size:14px}
-.alertbar.bad{background:#fadcda;border-color:#e3a9a4;border-left-color:var(--due)}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:100px;background:var(--steel);color:#fff;padding:12px 18px;border-radius:var(--r);z-index:200;font-weight:600;max-width:90%}
+
+.sheet{position:fixed;inset:0;background:rgba(8,11,14,.7);z-index:100;display:flex;align-items:flex-end}
+.sheet>div{background:var(--concrete);width:100%;max-height:94vh;overflow:auto;padding:var(--s4);
+  border-radius:14px 14px 0 0;max-width:640px;margin:0 auto;animation:rise .22s cubic-bezier(.2,.8,.3,1)}
+.alertbar{background:rgba(255,176,0,.14);border:1px solid rgba(255,176,0,.5);border-left:4px solid var(--amber-d);
+  padding:10px var(--s3);border-radius:var(--r);margin-bottom:var(--s2);font-size:14px;line-height:1.45}
+.alertbar.bad{background:rgba(193,53,43,.1);border-color:rgba(193,53,43,.45);border-left-color:var(--due)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:104px;background:var(--panel);color:#fff;
+  padding:12px 18px;border-radius:var(--r);z-index:200;font-weight:500;max-width:90%;font-size:15px;
+  box-shadow:0 6px 24px rgba(0,0,0,.3)}
 table{width:100%;border-collapse:collapse;font-size:14px}
-td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:left}
-th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05em}
-.dayb{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:var(--r);font-weight:700;background:#fff;font-size:14px}
-.dayb.P{background:#d7f0e3;border-color:#8ecfae} .dayb.A{background:#fadcda;border-color:#e3a9a4}
-.dayb.H{background:#fff3cd;border-color:#e0c26a} .dayb.off{opacity:.35}
-@media(prefers-reduced-motion:no-preference){.card{animation:up .18s ease-out}}
-@keyframes up{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+td,th{padding:8px 4px;border-bottom:1px solid var(--line);text-align:left}
+td:last-child,th:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.1em;font-weight:600}
+.dayb{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);
+  border-radius:var(--r);font-weight:600;background:var(--paper);font-size:14px;font-variant-numeric:tabular-nums}
+.dayb.P{background:rgba(14,124,82,.16);border-color:rgba(14,124,82,.4)}
+.dayb.A{background:rgba(193,53,43,.13);border-color:rgba(193,53,43,.4)}
+.dayb.H{background:rgba(255,176,0,.18);border-color:rgba(255,176,0,.45)}
+.dayb.off{opacity:.3}
+
+/* one orchestrated moment: the readout settles like an odometer coming to rest */
+@keyframes rise{from{transform:translateY(14px);opacity:.4}to{transform:none;opacity:1}}
+@keyframes settle{from{transform:translateY(-0.22em);opacity:0}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:no-preference){
+  .meter .val{animation:settle .34s cubic-bezier(.2,.9,.25,1) both}
+  .card{animation:rise .18s ease-out}
+}
 </style>
 </head>
 <body>
@@ -97,9 +135,9 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05
 
 <nav>
   <button data-tab="work" class="on"><span class="ic">▶</span>Work</button>
-  <button data-tab="ledger"><span class="ic">₹</span>Parties</button>
+  <button data-tab="ledger"><span class="ic">◍</span>Parties</button>
   <button data-tab="att"><span class="ic">▦</span>Duty</button>
-  <button data-tab="dash"><span class="ic">▲</span>Report</button>
+  <button data-tab="dash"><span class="ic">◪</span>Report</button>
   <button data-tab="set"><span class="ic">⚙</span>Setup</button>
 </nav>
 
@@ -109,7 +147,7 @@ th{font-size:11px;text-transform:uppercase;color:var(--muted);letter-spacing:.05
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-16-f';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-16-g';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
@@ -282,11 +320,11 @@ async function captureReading(label,last){
     openSheet(`<h2 class="disp">${label}</h2>
       <img src="${small}" style="width:100%;border-radius:4px;max-height:34vh;object-fit:cover">
       ${last!=null?`<p class="muted" style="margin:8px 0 0">${t('lastWas')} <b class="num">${last.toFixed(1)}</b> — ${t('mustHigher')}.</p>`:''}
-      <div class="meter" style="margin:8px 0"><div class="lbl">${t('typeNumber')}</div>
+      <div class="meter" style="margin:var(--s3) 0"><div class="lbl">${t('typeNumber')}</div>
         <div class="val num" id="kVal">– – – –</div>
         <div class="lbl" id="kHint" style="margin-top:4px">&nbsp;</div></div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
-        ${pad.map(k=>`<button class="btn ${k==='OK'?'':'ghost'}" data-k="${k}" style="width:100%;font-size:24px;min-height:58px">${k}</button>`).join('')}</div>
+        ${pad.map(k=>`<button class="btn ${k==='OK'?'':'ghost'}" data-k="${k}" style="width:100%;font-size:26px;min-height:64px">${k}</button>`).join('')}</div>
       <button class="btn ghost" id="kBack" style="margin-top:10px">${t('retakePhoto')}</button>`);
     const val=document.getElementById('kVal'),hint=document.getElementById('kHint');
     const paint=()=>{
@@ -583,46 +621,112 @@ function applyRole(){
 }
 function render(){applyRole();({work:vWork,ledger:vLedger,att:vAtt,dash:vDash,set:vSet}[tab])();sync()}
 
-/* --- WORK --- */
-function vWork(){
-  const s=S.settings,a=S.active,lr=lastReading();
-  const svcNext=s.lastService+ +s.serviceEvery, hrsToSvc=lr!=null?svcNext-lr:null;
-  let h='';
-  if(hrsToSvc!=null&&hrsToSvc<=20)h+=`<div class="alertbar ${hrsToSvc<=0?'bad':''}">Service ${hrsToSvc<=0?`overdue by ${Math.abs(hrsToSvc).toFixed(1)} hr`:`due in ${hrsToSvc.toFixed(1)} hr`} — next at ${svcNext.toFixed(1)} hr.</div>`;
-  if(!isOp()){
-    const dueTot=S.parties.reduce((x,p)=>x+Math.max(0,partyDue(p.id)),0);
-    if(dueTot>0&&!a)h+=`<div class="alertbar">${money(dueTot)} pending collection from ${S.parties.filter(p=>partyDue(p.id)>0).length} party(s).</div>`;
-  }
+/* --- HOME --- */
+/* Two different questions. The operator asks "start or stop". The owner asks
+   "what am I owed, and is the machine running". One screen each. */
+function vWork(){ return isOp()?vOperatorHome():vOwnerHome() }
 
+function elapsed(ms){
+  const m=Math.round((Date.now()-ms)/60000);
+  return m<60?m+' min':(Math.floor(m/60)+'h '+String(m%60).padStart(2,'0')+'m');
+}
+
+function vOperatorHome(){
+  const a=S.active,lr=lastReading();
+  let h='';
   if(a){
     const p=party(a.partyId);
-    h+=`<div class="card"><div class="between"><h2>${t('jobRunning')}</h2><span class="pill warn">${t('live')}</span></div>
-      <div class="muted">${esc(p.name)}${a.site?' · '+esc(a.site):''} · started ${new Date(a.startTs).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div>
-      <div class="meter" style="margin:12px 0"><div class="lbl">${t('start')}</div><div class="val num">${a.start.toFixed(1)}</div></div>
-      <button class="btn" id="endJob">${t('stopJob')}</button>
-      <button class="btn ghost sm" id="cancelJob" style="width:100%;margin-top:8px">${t('cancelJob')}</button></div>`;
+    h=`<div class="card">
+        <div class="between"><span class="eyebrow">${t('jobRunning')}</span><span class="pill warn">${t('live')}</span></div>
+        <p style="margin:var(--s1) 0 var(--s3);font-size:18px"><b>${esc(p.name)}</b>${a.site?'<br><span class="muted">'+esc(a.site)+'</span>':''}</p>
+        <div class="meter hero"><div class="lbl">${t('start')}</div><div class="val num">${a.start.toFixed(1)}</div>
+          <div class="lbl" style="margin-top:var(--s2)">${elapsed(a.startTs)}</div></div>
+        <button class="btn xl" id="endJob" style="margin-top:var(--s3)">${t('stopJob')}</button>
+        <button class="btn ghost sm" id="cancelJob" style="width:100%;margin-top:var(--s2)">${t('cancelJob')}</button>
+      </div>`;
   }else{
-    h+=`<div class="card"><h2>${t('startJob')}</h2>
-      <div class="meter plain" style="margin:8px 0"><div class="lbl">${t('lastMeter')}</div><div class="val num small">${lr!=null?lr.toFixed(1):t('noJobs')}</div></div>
-      <button class="btn" id="newJob">${t('takeStart')}</button></div>`;
+    h=`<div class="card">
+        <div class="meter hero"><div class="lbl">${t('lastMeter')}</div>
+          <div class="val num">${lr!=null?lr.toFixed(1):'– – – –'}</div></div>
+        <button class="btn xl" id="newJob" style="margin-top:var(--s3)">${t('takeStart')}</button>
+      </div>`;
   }
+  app.innerHTML=h;
+  bindWork();
+}
 
-  const recent=isOp()?[]:S.jobs.slice().sort((x,y)=>y.ts-x.ts).slice(0,12);
-  if(!isOp()){
-  h+=`<div class="card"><div class="between"><h2>Recent work</h2><button class="btn ghost sm" id="expCsv">Export</button></div>`;
+function vOwnerHome(){
+  const s=S.settings,a=S.active,lr=lastReading();
+  const due=S.parties.map(p=>({p,d:partyDue(p.id)})).filter(x=>x.d>0).sort((x,y)=>y.d-x.d);
+  const total=due.reduce((x,y)=>x+y.d,0);
+  const ym=today().slice(0,7),js=monthJobs(ym);
+  const billed=js.reduce((x,j)=>x+j.amount,0);
+  const got=S.payments.filter(p=>p.date.startsWith(ym)).reduce((x,p)=>x+p.amount,0);
+  const hrs=js.reduce((x,j)=>x+j.hours,0);
+
+  /* things that need a decision, gathered in one place instead of scattered */
+  const flags=[];
+  const svcNext=(+s.lastService||0)+(+s.serviceEvery||0);
+  if(lr!=null&&svcNext-lr<=20)
+    flags.push({bad:svcNext-lr<=0,txt:svcNext-lr<=0
+      ?`Service overdue by ${Math.abs(svcNext-lr).toFixed(1)} hr.`
+      :`Service due in ${(svcNext-lr).toFixed(1)} hr, at ${svcNext.toFixed(1)}.`});
+  const old=due.filter(x=>{
+    const last=S.jobs.filter(j=>j.partyId===x.p.id).sort((m,n)=>n.ts-m.ts)[0];
+    return last&&(Date.now()-last.ts)>30*864e5});
+  if(old.length)flags.push({bad:true,txt:`${old.map(x=>esc(x.p.name)).join(', ')} — nothing collected in over a month.`});
+
+  let h=`<div class="card">
+      <div class="meter hero"><div class="lbl">Outstanding</div>
+        <div class="val num">${money(total)}</div>
+        <div class="lbl" style="margin-top:var(--s2)">${due.length?'from '+due.length+' part'+(due.length>1?'ies':'y'):'nothing pending'}</div></div>`;
+  if(a){
+    h+=`<div class="between" style="margin-top:var(--s3);padding:var(--s3);border:1px solid var(--line);border-radius:var(--r)">
+        <div><span class="pill warn">${t('live')}</span> <b>${esc(party(a.partyId).name)}</b>
+          <div class="muted num">from ${a.start.toFixed(1)} · ${elapsed(a.startTs)}</div></div>
+        <button class="btn sm" id="endJob">Close</button></div>`;
+  }
+  h+=`<div class="grid2" style="margin-top:var(--s3)">
+      <button class="btn dark" id="hPay">Record payment</button>
+      <button class="btn ghost" id="newJob">${a?'—':'Start a job'}</button></div></div>`;
+
+  if(flags.length)h+=flags.map(f=>`<div class="alertbar ${f.bad?'bad':''}">${f.txt}</div>`).join('');
+
+  h+=`<div class="card"><h2>This month</h2>
+      <div class="grid3">
+        <div class="stat"><div class="k">Billed</div><div class="v num">${money(billed)}</div></div>
+        <div class="stat"><div class="k">Collected</div><div class="v num" style="color:var(--ok)">${money(got)}</div></div>
+        <div class="stat"><div class="k">Hours</div><div class="v num">${hrs.toFixed(1)}</div></div></div></div>`;
+
+  const recent=S.jobs.slice().sort((x,y)=>y.ts-x.ts).slice(0,4);
+  h+=`<div class="card"><div class="between"><h2>Recent work</h2>
+      <button class="btn ghost sm" id="expCsv">Export</button></div>`;
   h+=recent.length?recent.map(j=>`<div class="item between">
       <div><b>${esc(party(j.partyId).name)}</b> <span class="muted">${fmtD(j.date)}</span>
-        <div class="muted num">${j.start.toFixed(1)} → ${j.end.toFixed(1)} · ${j.hours.toFixed(1)} hr @ ${money(j.rate)}</div></div>
-      <div style="text-align:right"><div class="disp num" style="font-size:21px;font-weight:700">${money(j.amount)}</div>
-        <span class="pill ${j.paid?'paid':'credit'}">${j.paid?j.mode||'paid':'credit'}</span>
-        <div><button class="btn ghost sm jShare" data-id="${j.id}" style="margin-top:6px">Send</button></div></div></div>`).join('')
-    :'<p class="muted">No jobs recorded yet. Every job starts with a photo of the hour meter.</p>';
-  h+='</div>';}
+        <div class="muted mono" style="font-size:12px">${j.start.toFixed(1)} → ${j.end.toFixed(1)} · ${j.hours.toFixed(1)} hr</div></div>
+      <div style="text-align:right"><div class="disp num" style="font-size:22px">${money(j.amount)}</div>
+        <span class="pill ${j.paid?'paid':'credit'}">${j.paid?(j.mode||'paid'):'credit'}</span>
+        <div><button class="btn ghost sm jShare" data-id="${j.id}" style="margin-top:var(--s1)">Open</button></div></div></div>`).join('')
+    :`<p class="muted">No jobs yet. Add a party, then start a job — every job opens with a photo of the hour meter.</p>`;
+  h+='</div>';
   app.innerHTML=h;
+  bindWork();
+  const pay=document.getElementById('hPay');
+  if(pay)pay.onclick=()=>{
+    if(!S.parties.length)return toast('Add a party first');
+    openSheet(`<h2 class="disp">Record payment</h2><label>Party</label>
+      <select id="qP">${S.parties.map(p=>`<option value="${p.id}">${esc(p.name)} — ${money(partyDue(p.id))}</option>`).join('')}</select>
+      <div class="grid2" style="margin-top:var(--s3)"><button class="btn ghost" id="x">Cancel</button>
+      <button class="btn" id="go">Continue</button></div>`);
+    document.getElementById('x').onclick=closeSheet;
+    document.getElementById('go').onclick=()=>{const id=document.getElementById('qP').value;closeSheet();openParty(id)}};
+}
 
-  const nb=document.getElementById('newJob');if(nb)nb.onclick=startJob;
+function bindWork(){
+  const nb=document.getElementById('newJob');if(nb)nb.onclick=()=>{if(!S.active)startJob()};
   const eb=document.getElementById('endJob');if(eb)eb.onclick=endJob;
-  const cb=document.getElementById('cancelJob');if(cb)cb.onclick=()=>{if(confirm('Discard this running job?')){S.active=null;save();render()}};
+  const cb=document.getElementById('cancelJob');if(cb)cb.onclick=()=>{
+    if(confirm('Discard this running job?')){S.active=null;save();render()}};
   const ex=document.getElementById('expCsv');if(ex)ex.onclick=exportCsv;
   document.querySelectorAll('.jShare').forEach(b=>b.onclick=()=>shareJob(b.dataset.id));
 }
@@ -794,9 +898,9 @@ function vLedger(){
   h+=`<div class="stat" style="margin:10px 0"><div class="k">Total outstanding</div><div class="v num">${money(tot)}</div></div>`;
   h+=S.parties.length?S.parties.map(p=>{const d=partyDue(p.id);
     return `<div class="item between"><div><b>${esc(p.name)}</b><div class="muted">${esc(p.phone||'no number')} · ${money(p.rate||S.settings.rate)}/hr</div></div>
-      <div style="text-align:right"><div class="disp num" style="font-size:22px;font-weight:700;color:${d>0?'var(--due)':'var(--ok)'}">${money(d)}</div>
+      <div style="text-align:right"><div class="disp num" style="font-size:23px;color:${d>0?'var(--due)':'var(--ok)'}">${money(d)}</div>
       <button class="btn ghost sm pOpen" data-id="${p.id}">Open</button></div></div>`}).join('')
-    :'<p class="muted">No parties yet. Add the people you work for — rate and pending balance are tracked per party.</p>';
+    :'<p class="muted">No parties yet. Add the people you work for — each one keeps its own rate and running balance.</p>';
   h+='</div>';
   app.innerHTML=h;
   document.getElementById('addP').onclick=()=>editParty();
@@ -996,7 +1100,7 @@ function vDash(){
       <tr><td>Operator salary</td><td class="num" style="text-align:right">− ${money(s.salary)}</td></tr></table>
       <div class="meter" style="margin-top:10px"><div class="lbl">Before EMI, service &amp; repairs</div><div class="val num">${money(profit)}</div></div></div>
     <div class="card"><h2>Top parties this month</h2>
-      ${top.length?top.map(([id,v])=>`<div class="item between"><span>${esc(party(id).name)}</span><b class="num">${money(v)}</b></div>`).join(''):'<p class="muted">No work billed this month yet.</p>'}</div>`;
+      ${top.length?top.map(([id,v])=>`<div class="item between"><span>${esc(party(id).name)}</span><b class="mono">${money(v)}</b></div>`).join(''):'<p class="muted">Nothing billed this month yet.</p>'}</div>`;
 }
 
 /* --- SETTINGS --- */

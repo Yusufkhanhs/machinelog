@@ -1,16 +1,31 @@
 {
-  "name": "Machine Log — JCB work & billing",
-  "short_name": "Machine Log",
+  "name": "AizaL — Machine Log",
+  "short_name": "AizaL",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#e9ecef",
   "theme_color": "#14181c",
-  "description": "Hour-meter photo logging, party billing, operator duty and salary for a single excavator.",
+  "description": "Hour-meter job logging, party billing, operator duty and salary for AizaL.",
   "icons": [
-    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-    {"src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

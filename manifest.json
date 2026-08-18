@@ -1,13 +1,13 @@
 {
-  "name": "AizaL — Machine Log",
-  "short_name": "AizaL",
+  "name": "Aizal — Machine Log",
+  "short_name": "Aizal",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#e9ecef",
   "theme_color": "#14181c",
-  "description": "Hour-meter job logging, party billing, operator duty and salary for AizaL.",
+  "description": "Hour-meter job logging, party billing, operator duty and salary for Aizal.",
   "icons": [
     {
       "src": "icon-192.png",

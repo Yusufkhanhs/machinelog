@@ -128,7 +128,7 @@ th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.1e
 </head>
 <body>
 <header>
-  <div class="row"><h1 id="hTitle">Aizal Earth Movers Log</h1><small id="hSync" style="cursor:pointer">offline</small></div>
+  <div class="row"><h1 id="hTitle">Aizal — Earth Movers Log</h1><small id="hSync" style="cursor:pointer">offline</small></div>
 </header>
 <div class="hazard"></div>
 <main id="app"></main>
@@ -147,7 +147,7 @@ th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.1e
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-18-b';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-18-c';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
@@ -270,6 +270,7 @@ const isOp=()=>S.settings.role==='operator';
 const party=id=>S.parties.find(p=>p.id===id)||{name:'—',rate:S.settings.rate};
 /* Every rupee received — cash at site or a later UPI transfer — is a payment row.
    Balance is simply everything billed minus everything received. */
+const isFoc=j=>j&&(j.type==='foc'||j.mode==='foc');
 function partyDue(id){
   const b=S.jobs.filter(j=>j.partyId===id).reduce((a,j)=>a+j.amount,0);
   const p=S.payments.filter(x=>x.partyId===id).reduce((a,x)=>a+x.amount,0);
@@ -581,7 +582,7 @@ async function pullSheet(quiet){
         rate:+r.rate,transport:+r.transport||0,amount:+r.amount,paid:String(r.paid)==='PAID',
         mode:r.mode||'',diesel:+r.diesel||0,startPhoto:r.startPhoto||'',endPhoto:r.endPhoto||'',
         startUrl:photo[r.startPhoto]||'',endUrl:photo[r.endPhoto]||'',
-        editedAt:r.editedAt||'',editNote:r.editNote||''};
+        type:r.type||'hourly',editedAt:r.editedAt||'',editNote:r.editNote||''};
       const ex=S.jobs.find(x=>x.id===row.id);
       if(!ex){S.jobs.push(row);added++}
       else{
@@ -675,10 +676,10 @@ function billText(j){
     hasMeter(j)?`Start meter: ${j.start}`:'',
     hasMeter(j)?`End meter: ${j.end}`:'',
     `Hours worked: ${j.hours.toFixed(1)} hr${j.billHours!==j.hours?` (billed ${j.billHours.toFixed(1)} hr min)`:''}`,
-    `Rate: ${money(j.rate)}/hr`,
+    isFoc(j)?'':`Rate: ${money(j.rate)}/hr`,
     j.transport?`Transport: ${money(j.transport)}`:'',
-    `*Total: ${money(j.amount)}*`,
-    j.paid?`Status: PAID (${j.mode})`:`Status: PENDING`];
+    isFoc(j)?'':`*Total: ${money(j.amount)}*`,
+    isFoc(j)?`*No charge*${j.focNote?' — '+j.focNote:''}`:(j.paid?`Status: PAID (${j.mode})`:`Status: PENDING`)];
   const due=partyDue(j.partyId);
   if(!j.paid&&due>j.amount)L.push(`Total outstanding: ${money(due)}`);
   if(!j.paid&&S.settings.upi)L.push('',`Pay by UPI: ${S.settings.upi}`);
@@ -794,7 +795,7 @@ function vOwnerHome(){
       <div><b>${esc(party(j.partyId).name)}</b> <span class="muted">${fmtD(j.date)}</span>
         <div class="muted mono" style="font-size:12px">${hasMeter(j)?j.start.toFixed(1)+' → '+j.end.toFixed(1)+' · ':''}${(+j.hours||0).toFixed(1)} hr</div></div>
       <div style="text-align:right"><div class="disp num" style="font-size:22px">${money(j.amount)}</div>
-        <span class="pill ${j.paid?'paid':'credit'}">${j.paid?(j.mode||'paid'):'credit'}</span>
+        <span class="pill ${isFoc(j)?'warn':j.paid?'paid':'credit'}">${isFoc(j)?'free':j.paid?(j.mode||'paid'):'credit'}</span>
         <div><button class="btn ghost sm jShare" data-id="${j.id}" style="margin-top:var(--s1)">Open</button></div></div></div>`).join('')
     :`<p class="muted">No jobs yet. Add a party, then start a job — every job opens with a photo of the hour meter.</p>`;
   h+='</div>';
@@ -852,31 +853,58 @@ async function endJob(){
       <div class="meter plain"><div class="lbl">${t('start')}</div><div class="val num small">${a.start.toFixed(1)}</div></div>
       <div class="meter plain"><div class="lbl">${t('end')}</div><div class="val num small">${r.reading.toFixed(1)}</div></div></div>
     <div class="meter"><div class="lbl">${t('hoursWorked')}</div><div class="val num">${hours.toFixed(1)}</div></div>
-    <div class="grid2"><div><label>${t('ratePerHr')}</label><input id="eRate" type="number" value="${a.rate}"></div>
+    <label>How is this job charged?</label>
+    <div class="grid3"><button class="btn ghost sm ty" data-t="hourly">Hourly</button>
+      <button class="btn ghost sm ty" data-t="fixed">Fixed</button>
+      <button class="btn ghost sm ty" data-t="foc">Free</button></div>
+    <div class="grid2" id="rowHourly"><div><label>${t('ratePerHr')}</label><input id="eRate" type="number" value="${a.rate}"></div>
       <div><label>${t('billedHours')} (min ${s.minHours})</label><input id="eHrs" type="number" step="0.1" value="${bill.toFixed(1)}"></div></div>
+    <div id="rowFixed" class="hide"><label>Agreed price for the job</label><input id="eFixed" type="number" inputmode="numeric" value=""></div>
+    <div id="rowFoc" class="hide"><label>Why free of cost</label><input id="eFocNote" placeholder="own farm, masjid, goodwill"></div>
     <div class="grid2"><div><label>${t('transport')}</label><input id="eTr" type="number" value="${s.transport||0}"></div>
       <div><label>${t('diesel')}</label><input id="eDz" type="number" step="0.1" placeholder="optional"></div></div>
     <div class="meter" style="margin:12px 0"><div class="lbl">${t('amountPayable')}</div><div class="val num" id="eAmt">—</div></div>
-    <label>${t('payment')}</label>
-    <div class="grid3"><button class="btn ghost sm pm" data-m="credit">${t('credit')}</button><button class="btn ghost sm pm" data-m="cash">${t('cash')}</button><button class="btn ghost sm pm" data-m="upi">${t('upi')}</button></div>
+    <div id="payBlock"><label>${t('payment')}</label>
+    <div class="grid3"><button class="btn ghost sm pm" data-m="credit">${t('credit')}</button><button class="btn ghost sm pm" data-m="cash">${t('cash')}</button><button class="btn ghost sm pm" data-m="upi">${t('upi')}</button></div></div>
     <div class="grid2" style="margin-top:14px"><button class="btn ghost" id="x">${t('back')}</button><button class="btn" id="go">${t('saveJob')}</button></div>`);
-  let mode='credit';
-  const calc=()=>{const v=(+document.getElementById('eHrs').value||0)*(+document.getElementById('eRate').value||0)+(+document.getElementById('eTr').value||0);
-    document.getElementById('eAmt').textContent=money(v);return Math.round(v)};
-  ['eRate','eHrs','eTr'].forEach(i=>document.getElementById(i).oninput=calc);calc();
+  let mode='credit',jtype='hourly';
+  const calc=()=>{
+    let v=0;
+    if(jtype==='hourly')v=(+document.getElementById('eHrs').value||0)*(+document.getElementById('eRate').value||0)+(+document.getElementById('eTr').value||0);
+    else if(jtype==='fixed')v=(+document.getElementById('eFixed').value||0)+(+document.getElementById('eTr').value||0);
+    else v=0;
+    document.getElementById('eAmt').textContent=jtype==='foc'?'No charge':money(v);
+    return Math.round(v)};
+  const setType=tp=>{
+    jtype=tp;
+    document.querySelectorAll('.ty').forEach(b=>b.className='btn ghost sm ty'+(b.dataset.t===tp?' dark':''));
+    document.getElementById('rowHourly').className=tp==='hourly'?'grid2':'grid2 hide';
+    document.getElementById('rowFixed').className=tp==='fixed'?'':'hide';
+    document.getElementById('rowFoc').className=tp==='foc'?'':'hide';
+    document.getElementById('payBlock').className=tp==='foc'?'hide':'';
+    calc()};
+  document.querySelectorAll('.ty').forEach(b=>b.onclick=()=>setType(b.dataset.t));
+  ['eRate','eHrs','eTr','eFixed'].forEach(i=>{const el=document.getElementById(i);if(el)el.oninput=calc});
+  setType('hourly');
   document.querySelectorAll('.pm').forEach(b=>b.onclick=()=>{mode=b.dataset.m;
     document.querySelectorAll('.pm').forEach(x=>{x.className='btn ghost sm pm'});b.className='btn sm pm'});
   document.querySelector('.pm').click();
   document.getElementById('x').onclick=closeSheet;
   document.getElementById('go').onclick=async()=>{
-    const amt=calc(),dz=+document.getElementById('eDz').value||0;
+    const amt=jtype==='foc'?0:calc(),dz=+document.getElementById('eDz').value||0;
+    if(jtype==='fixed'&&!+document.getElementById('eFixed').value)return toast('Enter the agreed price');
+    if(jtype==='foc')mode='foc';
+    const focNote=jtype==='foc'?(document.getElementById('eFocNote').value||'').trim():'';
     const j={id:a.id,date:a.date,ts:Date.now(),partyId:a.partyId,site:a.site,start:a.start,end:r.reading,
-      hours,billHours:+document.getElementById('eHrs').value,rate:+document.getElementById('eRate').value,
-      transport:+document.getElementById('eTr').value||0,amount:amt,paid:mode!=='credit',mode:mode==='credit'?'':mode,
+      type:jtype,focNote:focNote,
+      hours,billHours:jtype==='hourly'?+document.getElementById('eHrs').value:hours,
+      rate:jtype==='hourly'?+document.getElementById('eRate').value:(hours?Math.round(amt/hours):0),
+      transport:+document.getElementById('eTr').value||0,amount:amt,
+      paid:jtype==='foc'?true:mode!=='credit',mode:jtype==='foc'?'foc':(mode==='credit'?'':mode),
       diesel:dz,startPhoto:a.startPhoto,endPhoto:r.photoId,loc:a.loc};
     S.jobs.push(j);
     S.settings.lastMeter=r.reading;
-    if(j.paid)addPayment({id:uid(),partyId:j.partyId,party:party(j.partyId).name,amount:amt,date:j.date,mode:j.mode,jobId:j.id});
+    if(j.paid&&j.amount>0)addPayment({id:uid(),partyId:j.partyId,party:party(j.partyId).name,amount:amt,date:j.date,mode:j.mode,jobId:j.id});
     if(dz)S.diesel.push({id:uid(),date:j.date,litres:dz,amount:Math.round(dz*S.settings.dieselRate),jobId:j.id});
     if(S.attendance[j.date]===undefined)S.attendance[j.date]='P';
     S.active=null;save();
@@ -1118,7 +1146,9 @@ function statement(id){
       ''];
     if(mode!=='all')L.push(`Previous balance: ${money(opening)}`,'');
     if(js.length){L.push('*Work*');
-      js.forEach(j=>L.push(`${fmtD(j.date)}  ${(j.billHours||j.hours).toFixed(1)} hr @ ${money(j.rate)}${j.transport?' + '+money(j.transport):''}  =  ${money(j.amount)}${j.site?'  ('+j.site+')':''}`));
+      js.forEach(j=>L.push(isFoc(j)
+        ? `${fmtD(j.date)}  ${(+j.hours||0).toFixed(1)} hr  =  no charge${j.site?'  ('+j.site+')':''}`
+        : `${fmtD(j.date)}  ${(j.billHours||j.hours).toFixed(1)} hr @ ${money(j.rate)}${j.transport?' + '+money(j.transport):''}  =  ${money(j.amount)}${j.site?'  ('+j.site+')':''}`));
       L.push(`Total billed: ${money(billed)}`,'');
     }
     if(ps.length){L.push('*Payments received*');
@@ -1268,10 +1298,12 @@ let histQ='',histStatus='all';
 function vDash(){
   const s=S.settings,js=monthJobs(repYM).filter(j=>!j.deleted);
   const [Y,M]=repYM.split('-').map(Number),daysInMonth=new Date(Y,M,0).getDate();
+  const focJs=js.filter(isFoc),paidJs=js.filter(j=>!isFoc(j));
+  const focHrs=focJs.reduce((a,j)=>a+(+j.hours||0),0);
   const billed=js.reduce((a,j)=>a+j.amount,0);
   const transport=js.reduce((a,j)=>a+(j.transport||0),0);
   const hours=js.reduce((a,j)=>a+j.hours,0);
-  const billedHrs=js.reduce((a,j)=>a+(j.billHours||j.hours),0);
+  const billedHrs=paidJs.reduce((a,j)=>a+(j.billHours||j.hours),0);
   const got=S.payments.filter(p=>p.date.startsWith(repYM)).reduce((a,p)=>a+p.amount,0);
   const dz=S.diesel.filter(d=>d.date.startsWith(repYM)).reduce((a,d)=>a+d.amount,0);
   const workDays=new Set(js.map(j=>j.date)).size;
@@ -1290,7 +1322,9 @@ function vDash(){
       <div class="stat"><div class="k">Collected</div><div class="v num" style="color:var(--ok)">${money(got)}</div></div>
       <div class="stat"><div class="k">Machine hours</div><div class="v num">${hours.toFixed(1)}</div></div>
       <div class="stat"><div class="k">Jobs</div><div class="v num">${js.length}</div></div>
-    </div></div>`;
+    </div>
+    ${focHrs?`<div class="alertbar" style="margin-top:var(--s3)">${focHrs.toFixed(1)} hr given free this month across ${focJs.length} job${focJs.length>1?'s':''} — worth about ${money(focHrs*(s.rate||0))} at your standard rate.</div>`:''}
+    </div>`;
 
   /* ageing — the thing that quietly turns into bad debt */
   h+=`<div class="card"><h2>What you are owed</h2>
@@ -1324,6 +1358,7 @@ function vDash(){
       <tr><td>Days worked</td><td>${workDays} of ${elapsedDays}</td></tr>
       <tr><td>Idle days</td><td style="color:${idle>elapsedDays/2?'var(--due)':'inherit'}">${idle}</td></tr>
       <tr><td>Average hours per working day</td><td>${workDays?(hours/workDays).toFixed(1):'—'}</td></tr>
+      <tr><td>Free-of-cost hours</td><td>${focHrs.toFixed(1)}</td></tr>
       <tr><td>Standard rate</td><td>${money(s.rate)}/hr</td></tr>
       <tr><td>Actually realised</td><td style="color:${realised&&realised<s.rate*0.9?'var(--due)':'var(--ok)'}">${realised?money(realised)+'/hr':'—'}</td></tr>
       <tr><td>Diesel logged</td><td>${money(dz)}</td></tr>
@@ -1362,7 +1397,7 @@ function vDash(){
         ${j.site?`<div class="muted">${esc(j.site)}</div>`:''}
         <div class="muted mono" style="font-size:12px">${hasMeter(j)?j.start.toFixed(1)+' → '+j.end.toFixed(1)+' · ':''}${(+j.hours||0).toFixed(1)} hr${j.rate?' @ '+money(j.rate):''}</div></div>
       <div style="text-align:right"><div class="disp num" style="font-size:21px">${money(j.amount)}</div>
-        <span class="pill ${j.paid?'paid':'credit'}">${j.paid?(j.mode||'paid'):'credit'}</span>
+        <span class="pill ${isFoc(j)?'warn':j.paid?'paid':'credit'}">${isFoc(j)?'free':j.paid?(j.mode||'paid'):'credit'}</span>
         <div><button class="btn ghost sm jShare" data-id="${j.id}" style="margin-top:var(--s1)">Open</button></div></div></div>`).join('')
     ||'<p class="muted">Nothing matches.</p>';
   if(all.length>60)h+=`<p class="muted">Showing the newest 60 of ${all.length}. Narrow the search or export for the full list.</p>`;

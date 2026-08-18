@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#10151a">
-<title>Aizal — Machine Log</title>
+<title>Aizal — Earth Movers Log</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -128,7 +128,7 @@ th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.1e
 </head>
 <body>
 <header>
-  <div class="row"><h1 id="hTitle">Machine Log</h1><small id="hSync" style="cursor:pointer">offline</small></div>
+  <div class="row"><h1 id="hTitle">Aizal Earth Movers Log</h1><small id="hSync" style="cursor:pointer">offline</small></div>
 </header>
 <div class="hazard"></div>
 <main id="app"></main>
@@ -147,7 +147,7 @@ th{font-size:10px;text-transform:uppercase;color:var(--muted);letter-spacing:.1e
 <script>
 /* ---------------- state ---------------- */
 const K='jcb_v1';
-const BUILD='2026-08-17-b';   /* shown in Setup so you can confirm the phone has the newest file */
+const BUILD='2026-08-18-b';   /* shown in Setup so you can confirm the phone has the newest file */
 const DEF={
   settings:{owner:'',machine:'JCB 3DX',rate:1000,minHours:1,transport:0,upi:'',upiName:'',
             opName:'Operator',salary:18000,workDays:26,otRate:80,dieselRate:95,
@@ -282,8 +282,9 @@ function dropPaymentFor(jobId){
 }
 /* On an operator phone the job list is wiped after sync, so the last meter figure
    is kept on its own — the continuity check must survive the purge. */
+const hasMeter=j=>j&&j.end!=null&&j.end!==''&&!isNaN(+j.end)&&+j.end>0;
 const lastReading=()=>{
-  const j=S.jobs.filter(x=>x.end!=null).sort((a,b)=>b.ts-a.ts)[0];
+  const j=S.jobs.filter(hasMeter).sort((a,b)=>b.ts-a.ts)[0];
   if(j)return j.end;                    /* the latest job wins, even if corrected downward */
   const b=S.settings.lastMeter;
   return b==null?null:b;
@@ -575,7 +576,8 @@ async function pullSheet(quiet){
       if(!pid){const m=S.parties.find(x=>x.name===r.party);pid=m?m.id:null;
         if(!pid&&r.party){pid=uid();S.parties.push({id:pid,name:r.party,phone:'',rate:+r.rate||S.settings.rate})}}
       const row={id:String(r.id),date:String(r.date),ts:Date.parse(r.date)||Date.now(),partyId:pid,
-        site:r.site||'',start:+r.start,end:+r.end,hours:+r.hours,billHours:+r.billHours||+r.hours,
+        site:r.site||'',start:(r.start===''||r.start==null)?null:+r.start,
+        end:(r.end===''||r.end==null)?null:+r.end,hours:+r.hours,billHours:+r.billHours||+r.hours,
         rate:+r.rate,transport:+r.transport||0,amount:+r.amount,paid:String(r.paid)==='PAID',
         mode:r.mode||'',diesel:+r.diesel||0,startPhoto:r.startPhoto||'',endPhoto:r.endPhoto||'',
         startUrl:photo[r.startPhoto]||'',endUrl:photo[r.endPhoto]||'',
@@ -670,8 +672,8 @@ function billText(j){
     `Date: ${fmtD(j.date)}`,
     `Party: ${p.name}`,
     j.site?`Site: ${j.site}`:'',
-    `Start meter: ${j.start}`,
-    `End meter: ${j.end}`,
+    hasMeter(j)?`Start meter: ${j.start}`:'',
+    hasMeter(j)?`End meter: ${j.end}`:'',
     `Hours worked: ${j.hours.toFixed(1)} hr${j.billHours!==j.hours?` (billed ${j.billHours.toFixed(1)} hr min)`:''}`,
     `Rate: ${money(j.rate)}/hr`,
     j.transport?`Transport: ${money(j.transport)}`:'',
@@ -790,7 +792,7 @@ function vOwnerHome(){
       <button class="btn ghost sm" id="expCsv">Export</button></div>`;
   h+=recent.length?recent.map(j=>`<div class="item between">
       <div><b>${esc(party(j.partyId).name)}</b> <span class="muted">${fmtD(j.date)}</span>
-        <div class="muted mono" style="font-size:12px">${j.start.toFixed(1)} → ${j.end.toFixed(1)} · ${j.hours.toFixed(1)} hr</div></div>
+        <div class="muted mono" style="font-size:12px">${hasMeter(j)?j.start.toFixed(1)+' → '+j.end.toFixed(1)+' · ':''}${(+j.hours||0).toFixed(1)} hr</div></div>
       <div style="text-align:right"><div class="disp num" style="font-size:22px">${money(j.amount)}</div>
         <span class="pill ${j.paid?'paid':'credit'}">${j.paid?(j.mode||'paid'):'credit'}</span>
         <div><button class="btn ghost sm jShare" data-id="${j.id}" style="margin-top:var(--s1)">Open</button></div></div></div>`).join('')
@@ -922,7 +924,7 @@ function shareJob(id){
 function editJob(id){
   const j=S.jobs.find(x=>x.id===id);if(!j)return;
   openSheet(`<h2 class="disp">Correct job</h2>
-    <p class="muted">${fmtD(j.date)} · originally ${j.start.toFixed(1)} → ${j.end.toFixed(1)}. The meter photos stay untouched as proof.</p>
+    <p class="muted">${fmtD(j.date)}${hasMeter(j)?' · originally '+j.start.toFixed(1)+' → '+j.end.toFixed(1):' · imported, no meter readings'}.</p>
     <label>Party</label><select id="eP">${S.parties.map(p=>`<option value="${p.id}" ${p.id===j.partyId?'selected':''}>${esc(p.name)}</option>`).join('')}</select>
     <label>Site / detail</label><input id="eS" value="${esc(j.site||'')}">
     <div class="grid2"><div><label>Start reading</label><input id="eA" type="number" step="0.1" value="${j.start}"></div>
@@ -954,13 +956,15 @@ function editJob(id){
     S.jobs.splice(S.jobs.indexOf(j),1);save();closeSheet();render();toast('Job deleted')};
   document.getElementById('go').onclick=()=>{
     const a=+document.getElementById('eA').value,b=+document.getElementById('eB').value;
-    if(!(b>a))return toast('End reading must be above start');
+    const noMeter=!document.getElementById('eA').value&&!document.getElementById('eB').value;
+    if(!noMeter&&!(b>a))return toast('End reading must be above start');
     const before={start:j.start,end:j.end,hours:j.hours,rate:j.rate,amount:j.amount,party:party(j.partyId).name};
     const amt=calc();
     j.partyId=document.getElementById('eP').value;
     j.site=document.getElementById('eS').value;
     j.date=document.getElementById('eD').value;
-    j.start=a;j.end=b;j.hours=+(b-a).toFixed(1);
+    if(noMeter){j.start=null;j.end=null;j.hours=+document.getElementById('eH').value}
+    else{j.start=a;j.end=b;j.hours=+(b-a).toFixed(1)}
     j.billHours=+document.getElementById('eH').value;
     j.rate=+document.getElementById('eR').value;
     j.transport=+document.getElementById('eT').value||0;
@@ -1056,7 +1060,9 @@ function openParty(id){
     <div class="grid2"><button class="btn" id="pPay">Record payment</button><button class="btn dark" id="pRemind">Send reminder</button></div>
     <table style="margin-top:12px"><tr><th>Date</th><th>Detail</th><th style="text-align:right">Bill</th><th style="text-align:right">Paid</th></tr>
     ${rows.map(r=>`<tr><td class="num">${fmtD(r.d)}</td><td>${esc(r.t)}</td><td class="num" style="text-align:right">${r.dr?money(r.dr):''}</td><td class="num" style="text-align:right;color:var(--ok)">${r.cr?money(r.cr):''}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No entries.</td></tr>'}</table>
-    <div class="grid2" style="margin-top:12px"><button class="btn ghost" id="pEdit">Edit party</button><button class="btn ghost" id="x">Close</button></div>`);
+    <button class="btn dark" id="pStmt" style="margin-top:var(--s3)">Send statement</button>
+    <div class="grid2" style="margin-top:var(--s2)"><button class="btn ghost" id="pEdit">Edit party</button><button class="btn ghost" id="x">Close</button></div>`);
+  document.getElementById('pStmt').onclick=()=>statement(id);
   document.getElementById('x').onclick=closeSheet;
   document.getElementById('pEdit').onclick=()=>editParty(id);
   document.getElementById('pRemind').onclick=()=>{
@@ -1079,6 +1085,61 @@ function openParty(id){
       S.jobs.filter(j=>j.partyId===id&&!j.paid).sort((a,b)=>a.ts-b.ts).forEach(j=>{
         if(left>=j.amount){j.paid=true;j.mode=row.mode;left-=j.amount;queue('job',{...j,party:p.name})}});
       save();closeSheet();render();toast('Payment recorded')}};
+}
+
+/* A statement is what ends a disagreement about money: every job, every payment,
+   what was owed before the period and what is owed after it. */
+function statement(id){
+  const p=party(id);
+  const ym=today().slice(0,7);
+  openSheet(`<h2 class="disp">Statement — ${esc(p.name)}</h2>
+    <label>Period</label><input type="month" id="stM" value="${ym}">
+    <label>Or send everything outstanding</label>
+    <select id="stMode"><option value="month">One month</option><option value="all">Full history</option></select>
+    <div class="grid2" style="margin-top:var(--s3)"><button class="btn ghost" id="x">Cancel</button>
+      <button class="btn" id="go">Build statement</button></div>`);
+  document.getElementById('x').onclick=()=>openParty(id);
+  document.getElementById('go').onclick=()=>{
+    const mode=document.getElementById('stMode').value,m=document.getElementById('stM').value;
+    const inRange=d=>mode==='all'||String(d).startsWith(m);
+    const before=d=>mode!=='all'&&String(d)<m;
+
+    const jobsAll=S.jobs.filter(j=>j.partyId===id).sort((a,b)=>a.date<b.date?-1:1);
+    const paysAll=S.payments.filter(x=>x.partyId===id).sort((a,b)=>a.date<b.date?-1:1);
+    const opening=jobsAll.filter(j=>before(j.date)).reduce((a,j)=>a+j.amount,0)
+                 -paysAll.filter(x=>before(x.date)).reduce((a,x)=>a+x.amount,0);
+    const js=jobsAll.filter(j=>inRange(j.date)),ps=paysAll.filter(x=>inRange(x.date));
+    const billed=js.reduce((a,j)=>a+j.amount,0),paid=ps.reduce((a,x)=>a+x.amount,0);
+    const closing=opening+billed-paid;
+
+    const L=[`*${S.settings.machine||'Machine'} — Statement*`,
+      `${p.name}`,
+      mode==='all'?'All work to date':new Date(m+'-01T00:00').toLocaleDateString('en-IN',{month:'long',year:'numeric'}),
+      ''];
+    if(mode!=='all')L.push(`Previous balance: ${money(opening)}`,'');
+    if(js.length){L.push('*Work*');
+      js.forEach(j=>L.push(`${fmtD(j.date)}  ${(j.billHours||j.hours).toFixed(1)} hr @ ${money(j.rate)}${j.transport?' + '+money(j.transport):''}  =  ${money(j.amount)}${j.site?'  ('+j.site+')':''}`));
+      L.push(`Total billed: ${money(billed)}`,'');
+    }
+    if(ps.length){L.push('*Payments received*');
+      ps.forEach(x=>L.push(`${fmtD(x.date)}  ${money(x.amount)}${x.mode?' ('+x.mode+')':''}`));
+      L.push(`Total received: ${money(paid)}`,'');
+    }
+    L.push(`*Balance due: ${money(closing)}*`);
+    if(closing>0&&S.settings.upi)L.push('',`Pay by UPI: ${S.settings.upi}`);
+    if(S.settings.owner)L.push('',`— ${S.settings.owner}`);
+    const txt=L.join('\n');
+
+    openSheet(`<h2 class="disp">Statement</h2>
+      <textarea rows="16" id="stT" style="font-size:13px">${esc(txt)}</textarea>
+      <button class="btn" id="stWa" style="margin-top:var(--s3)">Send on WhatsApp</button>
+      <div class="grid2" style="margin-top:var(--s2)">
+        <button class="btn ghost" id="stC">Copy</button>
+        <button class="btn ghost" id="x">Close</button></div>`);
+    document.getElementById('stWa').onclick=()=>waSend(document.getElementById('stT').value,p.phone);
+    document.getElementById('stC').onclick=()=>{navigator.clipboard.writeText(document.getElementById('stT').value);toast('Copied')};
+    document.getElementById('x').onclick=()=>openParty(id);
+  };
 }
 
 /* --- ATTENDANCE + SALARY --- */
@@ -1161,33 +1222,161 @@ function vAtt(){
     waSend(t,'')};
 }
 
-/* --- DASHBOARD --- */
+/* --- REPORT --- */
+/* The numbers a plant-hire owner actually runs on: what is owed and how old it is,
+   how much the machine ran without being billed, what an hour really earns, and
+   how many days it sat idle. */
+
+/* Settlement is oldest-first, so outstanding money always belongs to the newest
+   jobs. Walk a party's jobs forward, spend their payments, and whatever is left
+   unpaid carries the age of the job it sits on. */
+function ageing(){
+  const buckets={d30:0,d60:0,d90:0,older:0},detail=[];
+  S.parties.forEach(p=>{
+    let pool=S.payments.filter(x=>x.partyId===p.id).reduce((a,x)=>a+x.amount,0);
+    const js=S.jobs.filter(j=>j.partyId===p.id).sort((a,b)=>a.ts-b.ts);
+    js.forEach(j=>{
+      let owed=j.amount;
+      if(pool>0){const use=Math.min(pool,owed);pool-=use;owed-=use}
+      if(owed<=0.5)return;
+      const days=Math.floor((Date.now()-new Date(j.date+'T00:00'))/864e5);
+      const k=days<=30?'d30':days<=60?'d60':days<=90?'d90':'older';
+      buckets[k]+=owed;
+      detail.push({party:p.name,partyId:p.id,date:j.date,days,owed,job:j.id});
+    });
+  });
+  return {buckets,detail:detail.sort((a,b)=>b.days-a.days)};
+}
+
+/* Hours the meter turned between one job ending and the next starting —
+   machine time nobody was invoiced for. */
+function unbilledGap(ym){
+  const js=S.jobs.filter(hasMeter).sort((a,b)=>a.start-b.start);
+  let total=0,items=[];
+  for(let i=1;i<js.length;i++){
+    const gap=+(js[i].start-js[i-1].end).toFixed(1);
+    if(gap>0.1&&(!ym||js[i].date.startsWith(ym))){
+      total+=gap;items.push({gap,before:js[i-1].date,after:js[i].date});
+    }
+  }
+  return {total:+total.toFixed(1),items};
+}
+
+let repYM=today().slice(0,7);
+let histQ='',histStatus='all';
+
 function vDash(){
-  const ym=today().slice(0,7),js=monthJobs(ym),s=S.settings;
-  const rev=js.reduce((a,j)=>a+j.amount,0);
-  const rec=S.payments.filter(p=>p.date.startsWith(ym)).reduce((a,p)=>a+p.amount,0);
-  const hrs=js.reduce((a,j)=>a+j.hours,0);
-  const dz=S.diesel.filter(d=>d.date.startsWith(ym)).reduce((a,d)=>a+d.amount,0);
-  const out=S.parties.reduce((a,p)=>a+Math.max(0,partyDue(p.id)),0);
-  const profit=rev-dz-(+s.salary||0);
-  const byParty={};js.forEach(j=>byParty[j.partyId]=(byParty[j.partyId]||0)+j.amount);
-  const top=Object.entries(byParty).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const days=[...new Set(js.map(j=>j.date))].length;
-  app.innerHTML=`<div class="card"><h2>This month</h2>
-    <div class="grid2" style="margin-top:8px">
-      <div class="stat"><div class="k">Billed</div><div class="v num">${money(rev)}</div></div>
-      <div class="stat"><div class="k">Collected</div><div class="v num" style="color:var(--ok)">${money(rec)}</div></div>
-      <div class="stat"><div class="k">Outstanding (all)</div><div class="v num" style="color:var(--due)">${money(out)}</div></div>
-      <div class="stat"><div class="k">Machine hours</div><div class="v num">${hrs.toFixed(1)}</div></div>
-      <div class="stat"><div class="k">Working days</div><div class="v num">${days}</div></div>
-      <div class="stat"><div class="k">Avg / hour</div><div class="v num">${money(hrs?rev/hrs:0)}</div></div></div></div>
-    <div class="card"><h2>Rough profit</h2>
-      <table><tr><td>Billing</td><td class="num" style="text-align:right">${money(rev)}</td></tr>
-      <tr><td>Diesel logged</td><td class="num" style="text-align:right">− ${money(dz)}</td></tr>
-      <tr><td>Operator salary</td><td class="num" style="text-align:right">− ${money(s.salary)}</td></tr></table>
-      <div class="meter" style="margin-top:10px"><div class="lbl">Before EMI, service &amp; repairs</div><div class="val num">${money(profit)}</div></div></div>
-    <div class="card"><h2>Top parties this month</h2>
-      ${top.length?top.map(([id,v])=>`<div class="item between"><span>${esc(party(id).name)}</span><b class="mono">${money(v)}</b></div>`).join(''):'<p class="muted">Nothing billed this month yet.</p>'}</div>`;
+  const s=S.settings,js=monthJobs(repYM).filter(j=>!j.deleted);
+  const [Y,M]=repYM.split('-').map(Number),daysInMonth=new Date(Y,M,0).getDate();
+  const billed=js.reduce((a,j)=>a+j.amount,0);
+  const transport=js.reduce((a,j)=>a+(j.transport||0),0);
+  const hours=js.reduce((a,j)=>a+j.hours,0);
+  const billedHrs=js.reduce((a,j)=>a+(j.billHours||j.hours),0);
+  const got=S.payments.filter(p=>p.date.startsWith(repYM)).reduce((a,p)=>a+p.amount,0);
+  const dz=S.diesel.filter(d=>d.date.startsWith(repYM)).reduce((a,d)=>a+d.amount,0);
+  const workDays=new Set(js.map(j=>j.date)).size;
+  const past=repYM<=today().slice(0,7);
+  const elapsedDays=repYM===today().slice(0,7)?new Date().getDate():daysInMonth;
+  const idle=Math.max(0,elapsedDays-workDays);
+  const realised=billedHrs?(billed-transport)/billedHrs:0;
+  const gap=unbilledGap(repYM);
+  const ag=ageing();
+  const outTotal=Object.values(ag.buckets).reduce((a,b)=>a+b,0);
+
+  let h=`<div class="card"><div class="between"><h2>Report</h2>
+      <input type="month" id="rYM" value="${repYM}" style="width:auto;padding:7px"></div>
+    <div class="grid2" style="margin-top:var(--s3)">
+      <div class="stat"><div class="k">Billed</div><div class="v num">${money(billed)}</div></div>
+      <div class="stat"><div class="k">Collected</div><div class="v num" style="color:var(--ok)">${money(got)}</div></div>
+      <div class="stat"><div class="k">Machine hours</div><div class="v num">${hours.toFixed(1)}</div></div>
+      <div class="stat"><div class="k">Jobs</div><div class="v num">${js.length}</div></div>
+    </div></div>`;
+
+  /* ageing — the thing that quietly turns into bad debt */
+  h+=`<div class="card"><h2>What you are owed</h2>
+    <div class="meter" style="margin:var(--s2) 0"><div class="lbl">Outstanding</div>
+      <div class="val num">${money(outTotal)}</div></div>
+    <table>
+      <tr><th>Age</th><th>Amount</th></tr>
+      <tr><td>Up to 30 days</td><td>${money(ag.buckets.d30)}</td></tr>
+      <tr><td>31 – 60 days</td><td>${money(ag.buckets.d60)}</td></tr>
+      <tr><td>61 – 90 days</td><td style="color:${ag.buckets.d90?'var(--due)':'inherit'}">${money(ag.buckets.d90)}</td></tr>
+      <tr><td><b>Over 90 days</b></td><td style="color:${ag.buckets.older?'var(--due)':'inherit'}"><b>${money(ag.buckets.older)}</b></td></tr>
+    </table>`;
+  const worst=ag.detail.filter(x=>x.days>45).slice(0,4);
+  if(worst.length)h+=`<p class="muted" style="margin-top:var(--s3)">Oldest unpaid</p>`+
+    worst.map(x=>`<div class="item between"><div><b>${esc(x.party)}</b>
+      <div class="muted">${fmtD(x.date)} · ${x.days} days old</div></div>
+      <b class="mono" style="color:var(--due)">${money(x.owed)}</b></div>`).join('');
+  h+=`</div>`;
+
+  /* machine time nobody paid for */
+  h+=`<div class="card"><h2>Unbilled machine hours</h2>
+    <div class="grid2">
+      <div class="stat"><div class="k">This month</div><div class="v num" style="color:${gap.total>2?'var(--due)':'inherit'}">${gap.total.toFixed(1)} hr</div></div>
+      <div class="stat"><div class="k">Worth about</div><div class="v num">${money(gap.total*(realised||s.rate))}</div></div></div>
+    <p class="muted" style="margin-top:var(--s2)">Hours the meter turned between one job ending and the next starting. Shifting the machine and servicing account for some of it; the rest is work that was never billed.</p>
+    ${gap.items.slice(0,4).map(g=>`<div class="item between"><span class="muted">after ${fmtD(g.before)}</span><b class="mono">${g.gap.toFixed(1)} hr</b></div>`).join('')}</div>`;
+
+  /* what an hour really earns, and how often the machine earns at all */
+  h+=`<div class="card"><h2>Machine performance</h2>
+    <table>
+      <tr><td>Days worked</td><td>${workDays} of ${elapsedDays}</td></tr>
+      <tr><td>Idle days</td><td style="color:${idle>elapsedDays/2?'var(--due)':'inherit'}">${idle}</td></tr>
+      <tr><td>Average hours per working day</td><td>${workDays?(hours/workDays).toFixed(1):'—'}</td></tr>
+      <tr><td>Standard rate</td><td>${money(s.rate)}/hr</td></tr>
+      <tr><td>Actually realised</td><td style="color:${realised&&realised<s.rate*0.9?'var(--due)':'var(--ok)'}">${realised?money(realised)+'/hr':'—'}</td></tr>
+      <tr><td>Diesel logged</td><td>${money(dz)}</td></tr>
+      <tr><td>Diesel per hour</td><td>${hours?money(dz/hours):'—'}</td></tr>
+    </table>
+    <div class="meter" style="margin-top:var(--s3)"><div class="lbl">Billing less diesel and salary</div>
+      <div class="val num small">${money(billed-dz-(+s.salary||0))}</div></div>
+    <p class="muted" style="margin-top:var(--s2)">Before EMI, repairs and service.</p></div>`;
+
+  /* the full job history, filterable */
+  const all=S.jobs.filter(j=>{
+    if(histStatus==='paid'&&!j.paid)return false;
+    if(histStatus==='credit'&&j.paid)return false;
+    if(histStatus==='month'&&!j.date.startsWith(repYM))return false;
+    if(histQ){
+      const q=histQ.toLowerCase();
+      return (party(j.partyId).name||'').toLowerCase().includes(q)||(j.site||'').toLowerCase().includes(q);
+    }
+    return true;
+  }).sort((a,b)=>b.ts-a.ts);
+
+  h+=`<div class="card"><div class="between"><h2>All jobs</h2>
+      <button class="btn ghost sm" id="rExp">Export</button></div>
+    <input id="hQ" placeholder="Search party or site" value="${esc(histQ)}">
+    <div class="grid2" style="margin-top:var(--s2)">
+      <select id="hS">
+        <option value="all">Every job</option>
+        <option value="month">This month only</option>
+        <option value="credit">Unpaid only</option>
+        <option value="paid">Paid only</option>
+      </select>
+      <div class="stat"><div class="k">Showing</div><div class="v num">${all.length}</div></div></div>
+    <div style="margin-top:var(--s2)">`;
+  h+=all.slice(0,60).map(j=>`<div class="item between">
+      <div><b>${esc(party(j.partyId).name)}</b> <span class="muted">${fmtD(j.date)}</span>
+        ${j.site?`<div class="muted">${esc(j.site)}</div>`:''}
+        <div class="muted mono" style="font-size:12px">${hasMeter(j)?j.start.toFixed(1)+' → '+j.end.toFixed(1)+' · ':''}${(+j.hours||0).toFixed(1)} hr${j.rate?' @ '+money(j.rate):''}</div></div>
+      <div style="text-align:right"><div class="disp num" style="font-size:21px">${money(j.amount)}</div>
+        <span class="pill ${j.paid?'paid':'credit'}">${j.paid?(j.mode||'paid'):'credit'}</span>
+        <div><button class="btn ghost sm jShare" data-id="${j.id}" style="margin-top:var(--s1)">Open</button></div></div></div>`).join('')
+    ||'<p class="muted">Nothing matches.</p>';
+  if(all.length>60)h+=`<p class="muted">Showing the newest 60 of ${all.length}. Narrow the search or export for the full list.</p>`;
+  h+='</div></div>';
+
+  app.innerHTML=h;
+  document.getElementById('rYM').onchange=e=>{repYM=e.target.value;render()};
+  const q=document.getElementById('hQ');
+  q.oninput=e=>{histQ=e.target.value;const pos=e.target.selectionStart;render();
+    const n=document.getElementById('hQ');if(n){n.focus();n.setSelectionRange(pos,pos)}};
+  const sel=document.getElementById('hS');sel.value=histStatus;
+  sel.onchange=e=>{histStatus=e.target.value;render()};
+  document.getElementById('rExp').onclick=()=>exportCsv(all);
+  document.querySelectorAll('.jShare').forEach(b=>b.onclick=()=>shareJob(b.dataset.id));
 }
 
 /* --- SETTINGS --- */
@@ -1347,9 +1536,9 @@ async function loadTeam(){
   }catch(e){box.innerHTML='<p class="muted">Could not reach the sheet.</p>'}
 }
 
-function exportCsv(){
+function exportCsv(list){
   const rows=[['Date','Party','Site','Start','End','Hours','Billed hrs','Rate','Transport','Amount','Status','Mode','Diesel L']];
-  S.jobs.slice().sort((a,b)=>a.ts-b.ts).forEach(j=>rows.push([j.date,party(j.partyId).name,j.site||'',j.start,j.end,j.hours,j.billHours,j.rate,j.transport,j.amount,j.paid?'Paid':'Credit',j.mode||'',j.diesel||'']));
+  (list||S.jobs).slice().sort((a,b)=>a.ts-b.ts).forEach(j=>rows.push([j.date,party(j.partyId).name,j.site||'',j.start,j.end,j.hours,j.billHours,j.rate,j.transport,j.amount,j.paid?'Paid':'Credit',j.mode||'',j.diesel||'']));
   const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   a.download=`work-${today()}.csv`;a.click();
